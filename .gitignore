@@ -1,0 +1,24 @@
+# Node dependencies and runtime output
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.log
+
+# Environment credentials
+.env
+.env.*
+!.env.example
+
+# WhatsApp authentication/session material
+auth_info/
+auth_state/
+auth_sessions/
+sessions/
+creds.json
+**/creds.json
+*.session
+
+# Local/editor artifacts
+.DS_Store
+.vscode/
