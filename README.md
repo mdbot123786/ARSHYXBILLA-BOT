@@ -1,11 +1,10 @@
-# ARSHYXBILLA BOT v3.0
+# KER — ARSHYXBILLA BOT
 
 Ultimate WhatsApp Automation Tool with 120+ Commands
 
 ## Features
 
 - 120+ WhatsApp Commands
-- Hacking & Dangerous Tools
 - Group Management
 - Media Download (YouTube, TikTok, Instagram, etc.)
 - Image Editing Tools
@@ -14,7 +13,7 @@ Ultimate WhatsApp Automation Tool with 120+ Commands
 - AI Chatbot
 - Anti-Delete, Anti-Link, Anti-Call
 - Auto-Status Viewer
-- Web Dashboard with Broadcast
+- Web Dashboard with password-protected admin access
 - Telegram Pairing System
 - Premium User System
 
@@ -33,7 +32,7 @@ npm start
 | OWNER_NUMBER | Your WhatsApp number |
 | OWNER_TELEGRAM_ID | Your Telegram ID |
 | OPENAI_API_KEY | OpenAI API key (optional) |
-| ADMIN_PASSWORD | Dashboard password |
+| ADMIN_PASSWORD | Strong server-only dashboard password (minimum 12 characters) |
 | PORT | Web dashboard port |
 
 ## Command Categories
@@ -49,7 +48,7 @@ npm start
 
 Access at `http://localhost:3000`
 
-Set a strong `ADMIN_PASSWORD` environment variable before deployment; no default password is configured.
+Set a unique `ADMIN_PASSWORD` with at least 12 characters in the server environment before deployment; there is no built-in password. The dashboard's sign-in screen is only a local UI gate. `ADMIN_PASSWORD` is verified by the server, and pairing requests are available only after Admin Access is unlocked.
 
 ## License
 
@@ -62,9 +61,9 @@ MIT
 - `.adminmsg <text>` sends an admin alert card. With the admin card enabled, ordinary text messages from group admins are also echoed in the card style.
 - In a private chat, the bot owner can set `.presencecard offline`, `.presencecard busy`, or `.presencecard online`; `.presencecard off` disables these auto-replies. A 20-minute per-chat cooldown is applied.
 - Each of the six card types has 30 randomized phrase variations. Welcome/goodbye use WhatsApp group participant events.
-- Pairing requests begin sooner, but the pairing code itself is issued by WhatsApp and cannot be manually customized. WhatsApp Channel join/leave events and other users' global online status are not reliably exposed by the Baileys group-bot API.
+- Pairing requests wait for Baileys' readiness event before asking WhatsApp for a code. On the phone, open **WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead** and enter the code displayed by the dashboard. WhatsApp issues the code; the app cannot force a WhatsApp push notification.
 - The admin-card feature echoes admin text in a card; WhatsApp has already delivered the original admin message, so the bot cannot replace it retroactively.
-- The web pairing page is `index.html`; the three template videos are served from `public/assets/`.
+- The web pairing page is `index.html`; the three muted H.264 Baseline background videos and their poster fallbacks are served from `public/assets/`.
 
 ## Railway deployment
 

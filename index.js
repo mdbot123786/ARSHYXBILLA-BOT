@@ -4,14 +4,16 @@ const http = require('http');
 const socketIo = require('socket.io');
 const fs = require('fs-extra');
 const path = require('path');
+const crypto = require('crypto');
 const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, downloadContentFromMessage, jidNormalizedUser, Browsers, delay } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, downloadContentFromMessage, jidNormalizedUser, Browsers } = require('@whiskeysockets/baileys');
 const P = require('pino');
 const { OpenAI } = require('openai');
 const os = require('os');
 const { AsyncLocalStorage } = require('async_hooks');
 const cardTools = require('./commands/cards');
+const { requestPairingCodeWhenReady } = require('./lib/pairing');
 const commandReplyContext = new AsyncLocalStorage();
 
 // Import all commands
@@ -62,8 +64,6 @@ const commands = {
     setname: require('./commands/setname'),
     block: require('./commands/block'),
     unblock: require('./commands/unblock'),
-    bcgc: require('./commands/bcgc'),
-    bcall: require('./commands/bcall'),
     restart: require('./commands/restart'),
     shutdown: require('./commands/shutdown'),
     mode: require('./commands/mode'),
@@ -142,10 +142,7 @@ const commands = {
     // Dangerous / Khatarnak
     hack: require('./commands/hack'),
     repo: require('./commands/repo'),
-    xrestart: require('./commands/xrestart'),
-    xshutdown: require('./commands/xshutdown'),
     ghostmode: require('./commands/ghostmode'),
-    nuke: require('./commands/nuke'),
     deleteall: require('./commands/deleteall'),
     antibug: require('./commands/antibug'),
 
@@ -192,7 +189,6 @@ const commands = {
     clone: require('./commands/clone'),
     mention: require('./commands/mention'),
     tagme: require('./commands/tagme'),
-    everyonemsg: require('./commands/everyonemsg'),
     listonline: require('./commands/listonline'),
     mycmd: require('./commands/mycmd'),
     gali: require('./commands/gali'),
@@ -565,6 +561,7 @@ class BotSession {
         this.userChats = {}; 
         this.lastConnectMessageTime = null;
         this.phoneNumber = null;
+        this.pairingNumber = null;
         this.ghostMode = false;
     }
 
@@ -630,6 +627,8 @@ class BotSession {
             this.sendLog("Initialization already in progress...", "info");
             return;
         }
+        pairingNumber = pairingNumber || this.pairingNumber;
+        if (pairingNumber) this.pairingNumber = String(pairingNumber).replace(/\D/g, '');
         this.isInitializing = true;
         try {
             const { version } = await fetchLatestBaileysVersion();
@@ -678,6 +677,35 @@ class BotSession {
                 generateHighQualityLinkPreview: true,
             });
 
+            if (pairingNumber && !state.creds.registered) {
+                const digits = String(pairingNumber).replace(/\D/g, '');
+                if (digits.length < 10 || digits.length > 15) {
+                    throw new Error('Enter a WhatsApp number with country code using digits only.');
+                }
+                this.pairingNumber = digits;
+                const pairingSocket = this.sock;
+                requestPairingCodeWhenReady(pairingSocket, digits)
+                    .then(async rawCode => {
+                        if (this.sock !== pairingSocket) return;
+                        const normalizedCode = String(rawCode).replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                        const code = normalizedCode.match(/.{1,4}/g)?.join('-') || normalizedCode;
+                        this.sendLog('Pairing code is ready. Enter it in WhatsApp Linked Devices.', 'success');
+                        const socketId = userSockets[this.userId];
+                        if (socketId) io.to(socketId).emit('pairing-code', code);
+                        if (this.tgChatId && tgBot) {
+                            await tgBot.sendMessage(this.tgChatId,
+                                `ARSHYXBILLA pairing code: ${code}\n\nEnter it in WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead. Do not share this code.`,
+                                { disable_web_page_preview: true });
+                        }
+                    })
+                    .catch(error => {
+                        this.sendLog(`Pairing failed: ${error.message}`, 'error');
+                        const socketId = userSockets[this.userId];
+                        if (socketId) io.to(socketId).emit('pair-error', error.message || 'Pairing code generation failed. Please retry.');
+                        if (this.tgChatId && tgBot) tgBot.sendMessage(this.tgChatId, `Pairing failed: ${error.message}`).catch(() => {});
+                    });
+            }
+
             const rawSendMessage = this.sock.sendMessage.bind(this.sock);
             this.sock.sendMessage = async (jid, content, options) => {
                 const inCommand = commandReplyContext.getStore() === true;
@@ -695,37 +723,6 @@ class BotSession {
                 if (!hasFooter) await rawSendMessage(jid, { text: '> Powered by ARSHY' }, options);
                 return result;
             };
-            if (pairingNumber && !state.creds.registered) {
-                if (!this.sock.authState.creds.registered) {
-                    await delay(1000);
-                    try {
-                        let code = await this.sock.requestPairingCode(pairingNumber);
-                        const rawPairCode = String(code || '').replace(/[^A-Z0-9]/gi, '');
-                        code = rawPairCode.match(/.{1,4}/g)?.join('-') || code;
-                        this.sendLog(`\u{1F511} Pairing Code: ${code}`, 'success');
-
-                        if (this.tgChatId && tgBot) {
-                            const codeMsg = 
-                                `\u{25EC}\u{2501}\u{2501}\u{2501}\u{3008} *ARSHYXBILLA CODE* \u{3009}\u{2501}\u{2501}\u{2501}\u{25EC}\n\n` +
-                                `*\u{1F511} YOUR PAIRING CODE:* \`${code}\`\n\n` +
-                                `_Enter this code in your WhatsApp Linked Devices section._\n\n` +
-                                `> © POWERED BY ARSHYXBILLA BOT v3.0`;
-                            await tgBot.sendMessage(this.tgChatId, codeMsg, { parse_mode: 'Markdown' });
-                        }
-
-                        const socketId = userSockets[this.userId];
-                        if (socketId) io.to(socketId).emit('pairing-code', code);
-                    } catch (err) {
-                        this.sendLog(`\u{274C} Pairing error: ${err.message}`, 'error');
-                        const failedSocketId = userSockets[this.userId];
-                        if (failedSocketId) io.to(failedSocketId).emit('pair-error', err.message || 'Pairing code generation failed.');
-                        if (this.tgChatId && tgBot) {
-                            await tgBot.sendMessage(this.tgChatId, "\u{274C} Pairing Error: " + err.message);
-                        }
-                    }
-                }
-            }
-
             this.sock.ev.on('creds.update', saveCreds);
 
             this.sock.ev.on('call', async (calls) => {
@@ -1046,7 +1043,7 @@ Powered by ARSHY`;
                                             await allMenuCmd(this.sock, from, msg, this, commands); 
                                             break;
                                         case 'ownermenu': {
-                                            const text = `*\u{1F451} OWNER MENU*\n\n\u{25FB} .public\n\u{25FB} .private\n\u{25FB} .block\n\u{25FB} .unblock\n\u{25FB} .restart\n\u{25FB} .shutdown\n\u{25FB} .bcall\n\u{25FB} .bcgc`;
+                                            const text = `*\u{1F451} OWNER MENU*\n\n\u{25FB} .public\n\u{25FB} .private\n\u{25FB} .block\n\u{25FB} .unblock\n\u{25FB} .restart\n\u{25FB} .shutdown`;
                                             await this.sock.sendMessage(from, { text }, { quoted: msg });
                                             break;
                                         }
@@ -1115,7 +1112,6 @@ Powered by ARSHY`;
                                         case 'groupinfo': case 'ginfo': await commands.groupinfo(this.sock, from, msg); break;
                                         case 'accept': await commands.accept(this.sock, from, msg, isAdmin); break;
                                         case 'poll': await commands.poll(this.sock, from, msg, q); break;
-                                        case 'everyonemsg': await commands.everyonemsg(this.sock, from, msg, isAdmin, q); break;
                                         case 'listonline': await commands.listonline(this.sock, from, msg); break;
 
                                         // ===== ADMIN / OWNER =====
@@ -1135,8 +1131,6 @@ Powered by ARSHY`;
                                         case 'setname': await commands.setname(this.sock, from, msg, isAdmin, botData, saveBotData, this.userId, q); break;
                                         case 'block': await commands.block(this.sock, from, msg, isOwner, q); break;
                                         case 'unblock': await commands.unblock(this.sock, from, msg, isOwner, q); break;
-                                        case 'bcgc': await commands.bcgc(this.sock, from, msg, isOwner, q); break;
-                                        case 'bcall': await commands.bcall(this.sock, from, msg, isOwner, q); break;
                                         case 'restart': await commands.restart(this.sock, from, msg, isOwner); break;
                                         case 'shutdown': await commands.shutdown(this.sock, from, msg, isOwner); break;
                                         case 'mode': await commands.mode(this.sock, from, msg, isOwner, this); break;
@@ -1313,6 +1307,7 @@ Powered by ARSHY`;
                 } else if (connection === 'open') {
                     this.isConnected = true;
                     this.isInitializing = false;
+                    this.pairingNumber = null;
                     this.sendLog('Connected successfully! \u{2705}', 'success');
                     this.sendConnectionStatus();
                     this.startActiveCheck();
@@ -1444,30 +1439,57 @@ function generateMenuText(userName, session) {
 
 
 // =================== SOCKET.IO ===================
+const adminAuthFailures = new Map();
 io.on('connection', (socket) => {
-    // Admin auth
     socket.on('admin-auth', (password) => {
-        const adminPass = process.env.ADMIN_PASSWORD;
-        if (adminPass && password === adminPass) {
+        const adminPass = String(process.env.ADMIN_PASSWORD || '');
+        if (adminPass.length < 12) {
+            socket.emit('admin-auth-fail', { code: 'not_configured', message: 'Admin access is not configured. Set a strong ADMIN_PASSWORD on the server.' });
+            return;
+        }
+        const address = socket.handshake.address || 'unknown';
+        const attempts = adminAuthFailures.get(address) || { count: 0, lockedUntil: 0 };
+        if (Date.now() < attempts.lockedUntil) {
+            socket.emit('admin-auth-fail', { code: 'rate_limited', message: 'Too many attempts. Wait a few minutes and try again.' });
+            return;
+        }
+        const supplied = Buffer.from(typeof password === 'string' ? password : '');
+        const expected = Buffer.from(adminPass);
+        const valid = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+        if (valid) {
             socket.authenticated = true;
+            adminAuthFailures.delete(address);
             socket.emit('admin-auth-success');
         } else {
-            socket.emit('admin-auth-fail');
+            attempts.count += 1;
+            if (attempts.count >= 5) attempts.lockedUntil = Date.now() + 5 * 60 * 1000;
+            adminAuthFailures.set(address, attempts);
+            socket.emit('admin-auth-fail', { code: 'invalid', message: attempts.count >= 5 ? 'Too many attempts. Wait five minutes before trying again.' : 'Incorrect admin password.' });
         }
     });
 
+    socket.on('admin-logout', () => {
+        socket.authenticated = false;
+        socket.emit('admin-logout-success');
+    });
+
     socket.on('set-user', (userId) => {
+        if (!socket.authenticated) return socket.emit('pair-error', 'Unlock ADMIN ACCESS before requesting a pairing code.');
         if (typeof userId !== 'string' || !/^user_[a-z0-9]{9}$/.test(userId)) return socket.emit('pair-error', 'Invalid pairing session. Refresh and try again.');
         userSockets[userId] = socket.id;
         if (!sessions[userId]) sessions[userId] = new BotSession(userId);
         sessions[userId].sendConnectionStatus();
     });
 
-    // Pair request - still available via web for web users
     socket.on('pair-request', async ({ userId, number } = {}) => {
+        if (!socket.authenticated) return socket.emit('pair-error', 'Unlock ADMIN ACCESS before requesting a pairing code.');
         if (typeof userId !== 'string' || !/^user_[a-z0-9]{9}$/.test(userId) || userSockets[userId] !== socket.id) return socket.emit('pair-error', 'Pairing session is invalid. Refresh and try again.');
         number = String(number || '').replace(/\D/g, '');
-        if (number.length < 10 || number.length > 15) return socket.emit('pair-error', 'Enter a valid number with country code.');
+        if (number.length < 10 || number.length > 15) return socket.emit('pair-error', 'Enter a valid phone number with country code.');
+        if (Date.now() - (socket.lastPairRequestAt || 0) < 15_000) return socket.emit('pair-error', 'Please wait 15 seconds before requesting another code.');
+        socket.lastPairRequestAt = Date.now();
+        if (sessions[userId]?.isInitializing) return socket.emit('pair-error', 'A WhatsApp connection is already starting. Wait a few seconds, then retry.');
+        if (sessions[userId]?.isConnected) return socket.emit('pair-error', 'This WhatsApp session is already linked.');
         try {
         if (sessions[userId]) {
             if (!botData.statusSettings[userId]) {
@@ -1481,6 +1503,7 @@ io.on('connection', (socket) => {
                 saveBotData();
             }
             sessions[userId].tgChatId = null;
+            sessions[userId].phoneNumber = number;
             await sessions[userId].initialize(number);
         } else {
             sessions[userId] = new BotSession(userId);
@@ -1495,50 +1518,10 @@ io.on('connection', (socket) => {
                 saveBotData();
             }
             sessions[userId].tgChatId = null;
+            sessions[userId].phoneNumber = number;
             await sessions[userId].initialize(number);
         }
         } catch (error) { socket.emit('pair-error', error.message || 'Could not start pairing.'); }
-    });
-
-    // BROADCAST MESSAGE - Send to all connected users
-    socket.on('broadcast', async ({ message }) => {
-        if (!socket.authenticated) return;
-        
-        const activeBots = getAllActiveSockets();
-        let totalSent = 0;
-        let totalChats = 0;
-
-        for (const bot of activeBots) {
-            try {
-                // Get all chats for this bot
-                const allChats = Object.keys(bot.sock.chats || {});
-                const personalChats = allChats.filter(jid => jid.endsWith('@s.whatsapp.net') || jid.endsWith('@g.us'));
-                
-                for (const jid of personalChats) {
-                    try {
-                        await bot.sock.sendMessage(jid, { 
-                            text: `\u{1F4E2} *BROADCAST MESSAGE* \u{1F4E2}\n\n${message}\n\n_From: ARSHYXBILLA Bot Admin_` 
-                        });
-                        totalSent++;
-                    } catch (e) {}
-                }
-                totalChats += personalChats.length;
-            } catch (e) {
-                console.error('Broadcast error:', e.message);
-            }
-        }
-
-        // Save to history
-        botData.broadcastHistory.unshift({
-            message,
-            timestamp: new Date().toISOString(),
-            totalSent,
-            totalBots: activeBots.length
-        });
-        if (botData.broadcastHistory.length > 50) botData.broadcastHistory.pop();
-        saveBotData();
-
-        socket.emit('broadcast-result', { totalSent, totalBots: activeBots.length, totalChats });
     });
 
     // STOP BOT - Disconnect a specific bot
@@ -1590,12 +1573,6 @@ io.on('connection', (socket) => {
             }
         }
         socket.emit('bots-list', bots);
-    });
-
-    // GET BROADCAST HISTORY
-    socket.on('get-broadcast-history', () => {
-        if (!socket.authenticated) return;
-        socket.emit('broadcast-history', botData.broadcastHistory || []);
     });
 
     socket.on('disconnect', () => {
