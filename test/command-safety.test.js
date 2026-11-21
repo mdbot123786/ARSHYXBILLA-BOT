@@ -38,12 +38,12 @@ test('anti-delete is owner-only', async () => {
     assert.match(sock.sent[0][1].text, /Only the bot owner/);
 });
 
-test('chatbot auto-replies cannot be toggled by an arbitrary user', async () => {
+test('removed chatbot feature stays disabled and does not alter session state', async () => {
     const sock = fakeSocket();
     const session = { aiEnabled: false };
-    await chatbotCommand(sock, 'chat', {}, session, ['on'], false);
+    await chatbotCommand(sock, 'chat', {}, session, ['on'], true);
     assert.equal(session.aiEnabled, false);
-    assert.match(sock.sent[0][1].text, /Only the bot owner/);
+    assert.match(sock.sent[0][1].text, /disabled/);
 });
 
 test('snipe history is private to the bot owner', async () => {

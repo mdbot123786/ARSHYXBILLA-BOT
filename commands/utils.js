@@ -3,23 +3,7 @@ const os = require('os');
 
 // This file contains multiple utility commands to be exported
 const utils = {
-    // 1. News Command
-    news: async (sock, from, msg) => {
-        try {
-            const res = await axios.get('https://newsapi.org/v2/top-headlines?country=us&apiKey=YOUR_API_KEY'); // Placeholder
-            // Using a free fallback if no key
-            const fallback = await axios.get('https://api.siputzx.my.id/api/tools/news');
-            if (fallback.data.status) {
-                let text = `*\u{1F4F0} LATEST NEWS* \n\n`;
-                fallback.data.data.forEach((n, i) => {
-                    if (i < 5) text += `${i+1}. *${n.title}*\n🔗 ${n.url}\n\n`;
-                });
-                await sock.sendMessage(from, { text }, { quoted: msg });
-            }
-        } catch (e) { await sock.sendMessage(from, { text: "❌ News API Error" }); }
-    },
-
-    // 2. Dictionary
+    // Dictionary
     dict: async (sock, from, msg, q) => {
         if (!q) return sock.sendMessage(from, { text: "❌ Provide a word." });
         try {

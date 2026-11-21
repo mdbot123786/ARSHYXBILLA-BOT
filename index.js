@@ -9,10 +9,11 @@ const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, downloadContentFromMessage, jidNormalizedUser, Browsers } = require('@whiskeysockets/baileys');
 const P = require('pino');
-const { OpenAI } = require('openai');
 const os = require('os');
 const { AsyncLocalStorage } = require('async_hooks');
 const cardTools = require('./commands/cards');
+const warningsCommand = require('./commands/warnings');
+const antispamCommand = require('./commands/antispam');
 const menuCatalog = require('./commands/menuCatalog');
 const { requestPairingCodeWhenReady } = require('./lib/pairing');
 const commandReplyContext = new AsyncLocalStorage();
@@ -20,7 +21,6 @@ const commandReplyContext = new AsyncLocalStorage();
 // Import all commands
 const commands = {
     // Media & Download
-    song: require('./commands/song'),
     video: require('./commands/video'),
     insta: require('./commands/insta'),
     tiktok: require('./commands/tiktok'),
@@ -31,7 +31,6 @@ const commands = {
     reddit: require('./commands/reddit'),
     spotify: require('./commands/spotify'),
     mediafire: require('./commands/mf'),
-    apk: require('./commands/apk'),
     gdrive: require('./commands/gdrive'),
     mf: require('./commands/mf'),
    
@@ -83,10 +82,10 @@ const commands = {
     autoread: require('./commands/autoread').autoreadCommand,
 
     // AI
-    ai: require('./commands/ai'),
 
     // Fun
     joke: require('./commands/joke'),
+    poetry: require('./commands/poetry'),
     meme: require('./commands/meme'),
     dare: require('./commands/dare'),
     truth: require('./commands/truth'),
@@ -94,7 +93,6 @@ const commands = {
     roast: require('./commands/roast'),
     compliment: require('./commands/compliment'),
     ship: require('./commands/ship'),
-    emojimix: require('./commands/emojimix'),
     character: require('./commands/character'),
     quote: require('./commands/quote'),
     fact: require('./commands/fact'),
@@ -171,13 +169,10 @@ const commands = {
     binary: require('./commands/binary'),
     hex: require('./commands/hex'),
     pastebin: require('./commands/pastebin'),
-    news: require('./commands/news'),
     crypto: require('./commands/crypto'),
-    movie: require('./commands/movie'),
     anime: require('./commands/anime'),
     manga: require('./commands/manga'),
     lyrics: require('./commands/lyrics'),
-    chatbot: require('./commands/chatbot'),
     snipe: require('./commands/snipe'),
     editmsg: require('./commands/editmsg'),
     react: require('./commands/react'),
@@ -463,16 +458,6 @@ const io = socketIo(server, {
     transports: ['websocket', 'polling']
 });
 
-let openai = null;
-if (process.env.OPENAI_API_KEY) {
-    try {
-        openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
-            baseURL: process.env.AI_BASE_URL || "https://api.openai.com/v1"
-        });
-    } catch (e) {}
-}
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), { dotfiles: 'deny', index: false }));
@@ -498,6 +483,17 @@ for (const key of ['groupCards','groupMemberCounts','presenceCards','cardReplyCo
 
 function saveBotData() {
     fs.writeJsonSync(DATA_FILE, botData);
+}
+
+async function sendCardMessage(sock, chatId, text, participant) {
+    const mentions = participant ? [participant] : [];
+    if (participant && typeof sock.profilePictureUrl === 'function') {
+        try {
+            const imageUrl = await sock.profilePictureUrl(jidNormalizedUser(participant), 'image');
+            if (imageUrl) return await sock.sendMessage(chatId, { image: { url: imageUrl }, caption: text, mentions });
+        } catch {}
+    }
+    return sock.sendMessage(chatId, { text, mentions });
 }
 
 const sessions = {}; 
@@ -553,7 +549,6 @@ class BotSession {
         this.userId = userId;
         this.sock = null;
         this.isConnected = false;
-        this.aiEnabled = false; 
         this.autoReact = botData.statusSettings[userId]?.autoReact || false;
         this.isPublic = botData.statusSettings[userId]?.isPublic !== undefined ? botData.statusSettings[userId].isPublic : true; 
         this.authPath = path.join(AUTH_DIR, userId);
@@ -583,28 +578,6 @@ class BotSession {
             });
         }
         io.emit('total-active', Object.values(sessions).filter(s => s.isConnected).length);
-    }
-
-    async getAIResponse(userJid, userMessage, systemPrompt = "Helpful assistant.") {
-        try {
-            // Using a more reliable AI API endpoint
-            const apiUrl = `https://api.siputzx.my.id/api/ai/chatgpt?prompt=${encodeURIComponent(systemPrompt)}&text=${encodeURIComponent(userMessage)}`;
-            const response = await axios.get(apiUrl);
-            
-            if (response.data && response.data.status) {
-                return response.data.data;
-            } else {
-                // Fallback to another API if the first one fails
-                const fallbackUrl = `https://widipe.com/openai?text=${encodeURIComponent(userMessage)}`;
-                const fallbackRes = await axios.get(fallbackUrl);
-                if (fallbackRes.data && fallbackRes.data.result) {
-                    return fallbackRes.data.result;
-                }
-                throw new Error("Invalid API response from all sources");
-            }
-        } catch (error) {
-            return "\u{274C} AI Error: " + error.message;
-        }
     }
 
     startActiveCheck() {
@@ -762,14 +735,15 @@ class BotSession {
                         if (!groupSettings[kind]) continue;
                         const countMap = botData.groupMemberCounts[jid] || (botData.groupMemberCounts[jid] = { joined: 0, left: 0 });
                         countMap[kind === 'welcome' ? 'joined' : 'left'] = (countMap[kind === 'welcome' ? 'joined' : 'left'] || 0) + 1;
+                        const memberCount = Array.isArray(metadata.participants) ? metadata.participants.length : '?';
                         const text = cardTools.render(kind, {
                             mention: '@' + String(participant).split('@')[0],
                             count: countMap[kind === 'welcome' ? 'joined' : 'left'],
                             time: new Date().toLocaleString(),
-                            members: metadata.participants.length,
+                            members: memberCount,
                             group: metadata.subject
                         });
-                        await this.sock.sendMessage(jid, { text, mentions: [participant] });
+                        await sendCardMessage(this.sock, jid, text, participant);
                     }
                     saveBotData();
                 } catch (error) { this.sendLog('Group card event failed: ' + error.message, 'warning'); }
@@ -850,16 +824,6 @@ class BotSession {
                                 }
                             }
                         }
-                        // AI auto-reply
-                        if (this.aiEnabled && !isMe && !isGroup && text && !text.startsWith('.')) {
-                            try {
-                                const aiResponse = await this.getAIResponse(from, text);
-                                await this.sock.sendMessage(from, { text: aiResponse }, { quoted: msg });
-                            } catch (e) {
-                                console.error("AI Auto-Reply Error:", e);
-                            }
-                        }
-
                         // Status handling
                         if (isStatus && !isMe) {
                             await handleStatusUpdate(this.sock, m, botData, this.userId);
@@ -895,10 +859,16 @@ class BotSession {
                             }
                         }
 
+                        if (isGroup && !isAdmin && !isMe && text && antispamCommand.recordBurst(botData, from, sender)) {
+                            try { await this.sock.sendMessage(from, { delete: msg.key }); } catch {}
+                            await this.sock.sendMessage(from, { text: `⛔ @${sender.split('@')[0]} ke musalsal messages ko anti-spam ne rok diya.`, mentions: [sender] });
+                            return;
+                        }
+
                         if (isGroup && isAdmin && !isMe && text && !text.startsWith('.') && botData.groupCards[from]?.admin) {
                             const metadata = await this.sock.groupMetadata(from);
                             const card = cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: text });
-                            await this.sock.sendMessage(from, { text: card, mentions: [sender] });
+                            await sendCardMessage(this.sock, from, card, sender);
                         }
                         // Anti-status in groups
                         if (isGroup && botData.antiStatusGroups && botData.antiStatusGroups[from] && !isAdmin) {
@@ -960,13 +930,17 @@ class BotSession {
                                         case 'menu': await menuCatalog.sendMainMenu(this.sock, from, msg); break;
                                         case 'allmenu': await menuCatalog.sendAllMenu(this.sock, from, msg); break;
                                         case 'automation': case 'automationmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'automation'); break;
+                                        case 'cardmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'cardmenu'); break;
+                                        case 'warningsmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'warningsmenu'); break;
+                                        case 'spammenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'spammenu'); break;
+                                        case 'antimenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'antimenu'); break;
+                                        case 'hackmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'hackmenu'); break;
                                         case 'downloadmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'downloadmenu'); break;
                                         case 'stickermenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'stickermenu'); break;
                                         case 'groupmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'groupmenu'); break;
                                         case 'ownermenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'ownermenu'); break;
                                         case 'toolsmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'toolsmenu'); break;
                                         case 'searchmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'searchmenu'); break;
-                                        case 'aimenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'aimenu'); break;
                                         case 'funmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'funmenu'); break;
                                         case 'gamemenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'gamemenu'); break;
                                         case 'convertmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'convertmenu'); break;
@@ -974,6 +948,13 @@ class BotSession {
                                         case 'animemenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'animemenu'); break;
                                         case 'utilitymenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'utilitymenu'); break;
                                         case 'settingsmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'settingsmenu'); break;
+                                        case 'warn': case 'warnlist': case 'warns': case 'unwarn': case 'warnreset': case 'warnclear': case 'warnlimit': case 'warnkick': case 'warnstatus':
+                                            await warningsCommand(this.sock, from, msg, commandName, args, isAdmin, botData, saveBotData); break;
+                                        case 'antispam': case 'antiflood':
+                                            await antispamCommand(this.sock, from, msg, commandName, args, isAdmin, botData, saveBotData); break;
+                                        case 'spam':
+                                            await antispamCommand(this.sock, from, msg, 'status', args, isAdmin, botData, saveBotData); break;
+                                        case 'hack': await commands.hack(this.sock, from, msg, q); break;
                                         case 'groupcard': case 'card': {
                                             if (!isGroup) { await this.sock.sendMessage(from, { text: 'Use .groupcard inside a WhatsApp group.' }, { quoted: msg }); break; }
                                             const [cardType, cardAction] = args.map(x => x.toLowerCase());
@@ -1003,7 +984,7 @@ class BotSession {
                                             if (!isGroup || !isAdmin) { await this.sock.sendMessage(from, { text: 'Only a group admin can send an admin card in a group.' }, { quoted: msg }); break; }
                                             if (!q) { await this.sock.sendMessage(from, { text: 'Usage: .adminmsg <announcement text>' }, { quoted: msg }); break; }
                                             const metadata = await this.sock.groupMetadata(from);
-                                            await this.sock.sendMessage(from, { text: cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: q }), mentions: [sender] }, { quoted: msg }); break;
+                                            await sendCardMessage(this.sock, from, cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: q }), sender); break;
                                         }
                                         case 'presencecard': {
                                             if (!isOwner && !isMe && !isSessionUser) { await this.sock.sendMessage(from, { text: 'Only the bot owner/session owner can change availability cards.' }, { quoted: msg }); break; }
@@ -1013,7 +994,6 @@ class BotSession {
                                             await this.sock.sendMessage(from, { text: mode === 'off' ? 'Availability auto-replies disabled.' : `${mode} card enabled for private chats (20-minute cooldown per chat).` }, { quoted: msg }); break;
                                         }
                                         // ===== MEDIA & DOWNLOAD =====
-                                        case 'song': await commands.song(this.sock, from, msg); break;
                                         case 'video': await commands.video(this.sock, from, msg); break;
                                         case 'insta': case 'ig': await commands.insta(this.sock, from, msg, q); break;
                                         case 'tiktok': case 'tt': await commands.tiktok(this.sock, from, msg, q); break;
@@ -1025,7 +1005,6 @@ class BotSession {
                                         case 'spotify': case 'spot': await commands.spotify(this.sock, from, msg, q); break;
                                         case 'mediafire': case 'mf': await commands.mf(this.sock, from, msg, q); break;
                                         case 'gdrive': await commands.gdrive(this.sock, from, msg, q); break;
-                                        case 'apk': await commands.apk(this.sock, from, msg); break;
 
                                         // ===== GROUP MANAGEMENT =====
                                         case 'kick': await commands.kick(this.sock, from, msg, isAdmin); break;
@@ -1091,12 +1070,10 @@ class BotSession {
                                         case 'autoread': await commands.autoread(this.sock, from, msg, isOwner, args); break;
 
                                         // ===== AI =====
-                                        case 'ai': await commands.ai(this.sock, from, msg, isAdmin, this, args); break;
-                                        case 'chatbot': await commands.chatbot(this.sock, from, msg, this, args, isOwner); break;
-                                        case 'gali': await commands.gali(this.sock, from, msg, this, args); break;
 
                                         // ===== FUN =====
                                         case 'joke': await commands.joke(this.sock, from, msg); break;
+                                        case 'poetry': case 'shayari': await commands.poetry(this.sock, from, msg); break;
                                         case 'meme': await commands.meme(this.sock, from, msg); break;
                                         case 'dare': await commands.dare(this.sock, from, msg); break;
                                         case 'truth': await commands.truth(this.sock, from, msg); break;
@@ -1104,7 +1081,6 @@ class BotSession {
                                         case 'roast': await commands.roast(this.sock, from, msg); break;
                                         case 'compliment': await commands.compliment(this.sock, from, msg); break;
                                         case 'ship': await commands.ship(this.sock, from, msg); break;
-                                        case 'emojimix': await commands.emojimix(this.sock, from, msg); break;
                                         case 'character': await commands.character(this.sock, from, msg); break;
                                         case 'quote': await commands.quote(this.sock, from, msg); break;
                                         case 'fact': await commands.fact(this.sock, from, msg); break;
@@ -1174,9 +1150,7 @@ class BotSession {
                                         case 'binary': case 'bin': await commands.binary(this.sock, from, msg, q); break;
                                         case 'hex': await commands.hex(this.sock, from, msg, q); break;
                                         case 'pastebin': case 'paste': await commands.pastebin(this.sock, from, msg, q); break;
-                                        case 'news': await commands.news(this.sock, from, msg, q); break;
                                         case 'crypto': case 'coin': await commands.crypto(this.sock, from, msg, q); break;
-                                        case 'movie': case 'imdb': await commands.movie(this.sock, from, msg, q); break;
                                         case 'anime': await commands.anime(this.sock, from, msg, q); break;
                                         case 'manga': await commands.manga(this.sock, from, msg, q); break;
                                         case 'lyrics': await commands.lyrics(this.sock, from, msg, q); break;

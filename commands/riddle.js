@@ -1,21 +1,18 @@
+'use strict';
 const riddles = [
-    { q: "I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?", a: "A map" },
-    { q: "What has keys but no locks?", a: "A keyboard" },
-    { q: "What has a head and a tail but no body?", a: "A coin" },
-    { q: "What gets wet while drying?", a: "A towel" },
-    { q: "What can travel around the world while staying in a corner?", a: "A stamp" },
-    { q: "What has an eye but cannot see?", a: "A needle" },
-    { q: "What has hands but cannot clap?", a: "A clock" },
-    { q: "The more you take, the more you leave behind. What am I?", a: "Footsteps" },
-    { q: "What has a neck but no head?", a: "A bottle" },
-    { q: "What belongs to you but others use it more than you?", a: "Your name" }
+  { q:'Mere paas shehr, pahaar aur darya hain, magar ghar, darakht aur machhli nahi. Main kya hoon?', a:'Naqsha' },
+  { q:'Mere paas keys hain magar taale nahi. Main kya hoon?', a:'Keyboard' },
+  { q:'Mera sar aur dum hai magar jism nahi. Main kya hoon?', a:'Sikka' },
+  { q:'Khud geela ho kar doosron ko sukhaata hoon. Main kya hoon?', a:'Toliya' },
+  { q:'Duniya ka chakkar lagata hoon magar kone mein rehta hoon. Main kya hoon?', a:'Ticket' },
+  { q:'Meri aankh hai magar main dekh nahi sakti. Main kya hoon?', a:'Sui' },
+  { q:'Mere haath hain magar taali nahi baja sakta. Main kya hoon?', a:'Ghadi' },
+  { q:'Jitne qadam uthao, utne nishan peechay chhor jao. Woh kya hain?', a:'Qadam ke nishan' },
+  { q:'Meri gardan hai magar sar nahi. Main kya hoon?', a:'Bottle' },
+  { q:'Woh tumhara hai magar doosre tum se zyada istemal karte hain. Kya?', a:'Tumhara naam' }
 ];
-
 module.exports = async function(sock, chatId, msg) {
-    const riddle = riddles[Math.floor(Math.random() * riddles.length)];
-    await sock.sendMessage(chatId, { 
-        text: `*\u1F9E9 Riddle*\n\n` +
-            `${riddle.q}\n\n` +
-            `*Answer:* ||${riddle.a}||` 
-    }, { quoted: msg });
+  const r=riddles[Math.floor(Math.random()*riddles.length)];
+  return sock.sendMessage(chatId,{text:`🧩 *Paheli*\n\n${r.q}\n\n*Jawab:* ||${r.a}||`},{quoted:msg});
 };
+module.exports.riddles=riddles;

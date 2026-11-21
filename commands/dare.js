@@ -1,27 +1,3 @@
-const dares = [
-    "Send a funny voice message to the group!",
-    "Change your profile picture to something embarrassing for 1 hour!",
-    "Send your last screenshot!",
-    "Type with your eyes closed for the next 5 messages!",
-    "Send a message to your crush!",
-    "Act like a robot for the next 3 messages!",
-    "Share your most embarrassing moment!",
-    "Send a selfie right now!",
-    "Talk in third person for the next 10 minutes!",
-    "Send your search history!",
-    "Call the 5th person in your contacts!",
-    "Send a voice message singing!",
-    "Tell a secret nobody knows!",
-    "Pretend you're a cat for 3 messages!",
-    "Send the last photo you took!",
-    "Write a poem about someone in this group!",
-    "Use only emojis for the next 5 messages!",
-    "Reveal your battery percentage!",
-    "Send a message using only vowels!",
-    "Describe yourself in 3 words!"
-];
-
-module.exports = async function(sock, chatId, msg) {
-    const dare = dares[Math.floor(Math.random() * dares.length)];
-    await sock.sendMessage(chatId, { text: `*\u1F3B2 DARE*\n\n${dare}\n\n_You must do it!_` }, { quoted: msg });
-};
+'use strict';
+const items=['Group mein sab se funny member ko salam bhejo.','Apni recent selfie par ek funny caption lagao.','Agle paanch minute sirf Roman Urdu mein baat karo.','Kisi dost ki achhi aadat ki tareef karo.','Apni favourite chai ya snack ka naam batao.','Ek purana funny waqia sunao.','Group ke liye ek naya nickname socho.','Aaj kisi ek ka shukriya ada karo.'];
+module.exports=async(sock,chat,msg)=>sock.sendMessage(chat,{text:`🎯 *Dare*\n\n${items[Math.floor(Math.random()*items.length)]}`},{quoted:msg});

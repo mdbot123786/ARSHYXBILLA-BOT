@@ -1,20 +1,19 @@
 # KER — ARSHYXBILLA BOT
 
-Ultimate WhatsApp Automation Tool with 120+ Commands
+WhatsApp bot with group management, local Roman Urdu fun commands, safety controls, and web pairing
 
 ## Features
 
-- 120+ WhatsApp Commands
+- WhatsApp command menus with command-only listings
 - Group Management
-- Media Download (YouTube, TikTok, Instagram, etc.)
+- Media and utility commands where the required provider is available
 - Image Editing Tools
 - Islamic Commands
 - Fun & Games
-- AI Chatbot
 - Anti-Delete, Anti-Link, Anti-Call
 - Auto-Status Viewer
 - Web Dashboard with password-protected admin access
-- Telegram Pairing System
+- WhatsApp pairing dashboard
 - Premium User System
 
 ## Installation
@@ -31,16 +30,15 @@ npm start
 | TELEGRAM_BOT_TOKEN | Bot token from @BotFather |
 | OWNER_NUMBER | Your WhatsApp number |
 | OWNER_TELEGRAM_ID | Your Telegram ID |
-| OPENAI_API_KEY | OpenAI API key (optional) |
 | ADMIN_PASSWORD | Strong server-only dashboard password (minimum 12 characters) |
 | PORT | Web dashboard port |
 
 ## Command Categories
 
-- **Media Download**: song, video, youtube, instagram, tiktok, facebook, etc.
+- **Media Download**: video, youtube, instagram, tiktok, facebook, etc.
 - **Group Management**: kick, add, promote, demote, mute, revoke, etc.
 - **Tools**: weather, github, ipinfo, whois, portscan, etc.
-- **Fun**: joke, meme, dare, truth, ship, trivia, etc.
+- **Fun**: Roman Urdu joke/meme/dare/truth, Urdu poetry, safe fake hack animation
 - **Islamic**: quran, hadith, prayer, qibla, asmaulhusna
 - **System**: uptime, serverinfo, speedtest, device
 
@@ -48,7 +46,7 @@ npm start
 
 Access at `http://localhost:3000`
 
-Set a unique `ADMIN_PASSWORD` with at least 12 characters in the server environment before deployment; there is no built-in password. The dashboard's sign-in screen is only a local UI gate. `ADMIN_PASSWORD` is verified by the server, and pairing requests are available only after Admin Access is unlocked.
+Set a unique `ADMIN_PASSWORD` with at least 12 characters in the server environment before deployment; there is no built-in password. The dashboard's sign-in screen is only a local UI gate. `ADMIN_PASSWORD` is verified only for Admin Access. WhatsApp pairing requests are independent of Admin Access. The bot cannot force WhatsApp to send its pairing notification; WhatsApp controls code and notification delivery.
 
 ## License
 
@@ -67,8 +65,8 @@ MIT
 
 ## Railway deployment
 
-Create a Railway service from the private GitHub repository and deploy from the repository root. Railway uses `railway.toml` and runs `npm start`; the web dashboard binds to Railway's `PORT` and exposes `/health` for health checks.
+Create a Railway service from the public GitHub repository and deploy from the repository root. Railway uses `railway.toml` and runs `npm start`; the web dashboard binds to Railway's `PORT` and exposes `/health` for health checks.
 
-Set these variables in Railway's service variables (never commit their values): `TELEGRAM_BOT_TOKEN`, `OWNER_NUMBER`, `OWNER_TELEGRAM_ID`, and a strong unique `ADMIN_PASSWORD`. `OPENAI_API_KEY` is optional. Attach a persistent Railway volume at `/app/auth_info` and another at `/app/data` so WhatsApp authentication and bot settings survive redeploys. Pair the WhatsApp account through the dashboard after the service is healthy.
+Set these variables in Railway's service variables (never commit their values): `TELEGRAM_BOT_TOKEN`, `OWNER_NUMBER`, `OWNER_TELEGRAM_ID`, and a strong unique `ADMIN_PASSWORD`. Attach a persistent Railway volume at `/app/auth_info` and another at `/app/data` so WhatsApp authentication and bot settings survive redeploys. Pair the WhatsApp account through the dashboard after the service is healthy.
 
 Do not commit `.env`, WhatsApp authentication files, or pairing/session data. The repository's `.gitignore` excludes these paths.

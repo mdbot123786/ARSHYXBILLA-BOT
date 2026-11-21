@@ -1,10 +1,6 @@
+'use strict';
 module.exports = async function(sock, chatId, msg) {
-    const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
-    const emoji = result === 'Heads' ? '\u1FA99' : '\uD83E\uDE99';
-    
-    await sock.sendMessage(chatId, { 
-        text: `*${emoji} Coin Flip*\n\n` +
-            `Flipping...\n\n` +
-            `*Result: ${result}!*` 
-    }, { quoted: msg });
+    const result = Math.random() < 0.5 ? 'Chit' : 'Patt';
+    const emoji = result === 'Chit' ? '🪙' : '🪙';
+    return sock.sendMessage(chatId, { text: `*${emoji} Sikka uchhalo*\n\nSikka ghoom raha hai...\n\n*Nateeja: ${result}!*` }, { quoted: msg });
 };

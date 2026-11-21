@@ -1,64 +1,33 @@
+'use strict';
 
-// commands/hack.js
-const settings = require('../settings');
+const animations = [
+    ['Booting pretend terminal', 'Loading pixel tools', 'Scanning imaginary matrix', 'Progress: 100%', 'Simulation complete'],
+    ['Connecting to localhost', 'Checking fictional firewall', 'No real system contacted', 'Progress: 100%', 'All safe'],
+    ['Starting neon console', 'Decrypting a made-up cipher', 'Generating green pixels', 'Progress: 100%', 'Just a visual joke'],
+    ['Opening virtual console', 'Counting digital sheep', 'Found 42 imaginary files', 'Progress: 100%', 'Nothing was accessed'],
+    ['Launching demo sequence', 'Mapping pretend network', 'Every address is fictional', 'Progress: 100%', 'Demo finished'],
+    ['Warming up keyboard', 'Typing at 9000 WPM', 'Coffee level: critical', 'Progress: 100%', 'Keyboard hero mode'],
+    ['Starting cyber theater', 'Rendering green rain', 'No packets sent', 'Progress: 100%', 'Stage effect complete'],
+    ['Checking imaginary server', 'Server says: hello', 'No login attempted', 'Progress: 100%', 'Friendly simulation'],
+    ['Loading safe mode', 'Creating fake access logs', 'No real files read', 'Progress: 100%', 'Safe mode remains on'],
+    ['Running pixel generator', 'Painting terminal green', 'Adding dramatic beeps', 'Progress: 100%', 'Animation complete'],
+    ['Starting demo scanner', 'Scanning fictional planets', 'Mars: very dusty', 'Progress: 100%', 'Space scan complete'],
+    ['Entering pretend mainframe', 'Searching for snacks', 'Snacks not detected', 'Progress: 100%', 'Try the kitchen'],
+    ['Opening mock command line', 'Calculating coolness', 'Result: maximum', 'Progress: 100%', 'No computer touched'],
+    ['Loading cyber style', 'Adding neon glow', 'Adding dramatic music', 'Progress: 100%', 'Style applied'],
+    ['Starting virtual mission', 'Mission: make tea', 'Water: ready', 'Progress: 100%', 'Tea mission complete'],
+    ['Scanning fictional galaxy', 'Found 3 friendly aliens', 'They say salam', 'Progress: 100%', 'Galaxy simulation done'],
+    ['Booting animation engine', 'Drawing tiny robots', 'Robot says beep', 'Progress: 100%', 'Beep boop'],
+    ['Running pretend update', 'Installing good vibes', 'Removing bad moods', 'Progress: 100%', 'Mood updated'],
+    ['Launching harmless demo', 'Checking imaginary permissions', 'Everything is pretend', 'Progress: 100%', 'Demo safely stopped'],
+    ['Starting terminal theater', 'Rendering green characters', 'No network activity', 'Progress: 100%', 'This was only an animation']
+];
 
-function onlyDigits(s = '') {
-  return String(s).replace(/\D/g, '');
+async function hackCommand(sock, chatId, msg) {
+    const sequence = animations[Math.floor(Math.random() * animations.length)];
+    const body = ['╭━━〔 💻 FAKE HACK ANIMATION 〕━━╮', ...sequence.map((line, i) => `▰ ${String(i + 1).padStart(2, '0')}/05  ${line}`), '╰━━ Sirf mazaaq — koi hacking nahi hui ━━╯'].join('\n');
+    return sock.sendMessage(chatId, { text: body }, { quoted: msg });
 }
 
-function getOwnersNormalized() {
-  const raw = settings.ownerNumber;
-  const owners = Array.isArray(raw) ? raw : String(raw).split ? String(raw).split(',') : [raw];
-  return owners.map(o => onlyDigits(o));
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function hackCommand(sock, chatId, message /* original message object */, q) {
-  try {
-    // Determine sender (works for private & group)
-    const rawSender = message.key?.participant || message.key?.remoteJid || '';
-    const senderDigits = onlyDigits(rawSender);
-
-    // Owner(s)
-    const owners = getOwnersNormalized();
-
-    // Allow owner or fromMe messages
-    if (!owners.includes(senderDigits) && !message.key?.fromMe) {
-      return await sock.sendMessage(chatId, { text: '❌ Only the bot owner can use this command.' }, { quoted: message });
-    }
-
-    const steps = [
-      '💻 *HACK STARTING...* 💻',
-      '*Initializing hacking tools...* 🛠️',
-      '*Connecting to remote servers...* 🌐',
-      '```[█▒▒▒▒] 10%``` ⏳',
-      '```[██▒▒▒▒] 30%``` ⏳',
-      '```[████▒▒▒] 50%``` ⏳',
-      '```[██████▒] 70%``` ⏳',
-      '```[████████] 90%``` ⏳',
-      '```[████████] 100%``` ✅',
-      '🔒 *System Breach: Successful!* 🔓',
-      '🚀 *Executing final commands...* 🎯',
-      '*📡 Transmitting data...* 📤',
-      '_🕵️‍♂️ Covering tracks..._ 🤫',
-      '*🔧 Finalizing operations...* 🏁',
-      '⚠️ *Note:* This is a joke command for fun.',
-      '> *HACK COMPLETE ☣*'
-    ];
-
-    for (const line of steps) {
-      await sock.sendMessage(chatId, { text: line }, { quoted: message });
-      // Random delay between 500ms and 2000ms for realism
-      const delay = Math.floor(Math.random() * 1500) + 500;
-      await sleep(delay);
-    }
-  } catch (err) {
-    console.error('hackCommand error:', err);
-    await sock.sendMessage(chatId, { text: `❌ Error: ${err.message || String(err)}` }, { quoted: message });
-  }
-}
-
+hackCommand.animations = animations;
 module.exports = hackCommand;
