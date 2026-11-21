@@ -213,4 +213,56 @@ function render(type, values = {}) {
   };
   return (blocks[type] || blocks.welcome).replace(/\{(mention|count|time|members|group|message|phrase)\}/g, (_, key) => String(v[key]));
 }
-module.exports = { variants, pick, render, cleanText };
+function participantJid(value) {
+  if (typeof value === 'string') return value;
+  const raw = value?.phoneNumber || value?.id || value?.jid || value?.lid || null;
+  if (typeof raw !== 'string' || !raw) return null;
+  return raw.includes('@') ? raw : `${raw}@s.whatsapp.net`;
+}
+async function sendCardMessage(sock, chatId, text, participant) {
+  const jid = participantJid(participant);
+  const mentions = jid ? [jid] : [];
+  if (jid && typeof sock.profilePictureUrl === 'function') {
+    try {
+      const imageUrl = await sock.profilePictureUrl(jid, 'image');
+      if (imageUrl) return sock.sendMessage(chatId, { image: { url: imageUrl }, caption: text, mentions });
+    } catch {}
+  }
+  return sock.sendMessage(chatId, { text, mentions });
+}
+async function handleParticipantUpdate(sock, event, groupCards, groupMemberCounts) {
+  groupCards ||= {};
+  groupMemberCounts ||= {};
+  const group = event?.id;
+  if (!group || !group.endsWith('@g.us')) return 0;
+  const settings = groupCards?.[group] || {};
+  if (!settings.welcome && !settings.goodbye) return 0;
+  const kind = event.action === 'add' ? 'welcome' : event.action === 'remove' ? 'goodbye' : null;
+  if (!kind || !settings[kind]) return 0;
+  const metadata = await sock.groupMetadata(group);
+  const participants = Array.isArray(event.participants) ? event.participants : [];
+  const memberRows = Array.isArray(metadata.participants) ? metadata.participants : [];
+  let memberCount = memberRows.length;
+  let sent = 0;
+  for (const participant of participants) {
+    const jid = participantJid(participant);
+    if (!jid) continue;
+    const inMetadata = memberRows.some(row => participantJid(row) === jid);
+    if (kind === 'welcome' && memberRows.length && !inMetadata) memberCount++;
+    if (kind === 'goodbye' && inMetadata) memberCount = Math.max(0, memberCount - 1);
+    const counts = groupMemberCounts[group] || (groupMemberCounts[group] = { joined: 0, left: 0 });
+    const countKey = kind === 'welcome' ? 'joined' : 'left';
+    counts[countKey] = (counts[countKey] || 0) + 1;
+    const text = render(kind, {
+      mention: '@' + jid.split('@')[0],
+      count: counts[countKey],
+      time: new Date().toLocaleString(),
+      members: memberCount,
+      group: metadata.subject
+    });
+    await sendCardMessage(sock, group, text, jid);
+    sent++;
+  }
+  return sent;
+}
+module.exports = { variants, pick, render, cleanText, participantJid, sendCardMessage, handleParticipantUpdate };

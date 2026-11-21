@@ -28,11 +28,14 @@ const sections = [
     ], note: 'Welcome/goodbye/admin cards work in groups only. WhatsApp Channel subscriber join/leave events are not exposed through this bot interface.' },
     { key: 'warningsmenu', label: '⚠️ 𝐖𝐀𝐑𝐍𝐈𝐍𝐆𝐒', entries: [
         '.warn on/off', '.warn @user [reason]', '.warnlist', '.warns @user', '.unwarn @user', '.warnreset @user',
-        '.warnclear', '.warnlimit <2-10>', '.warnkick on/off', '.warnstatus'
-    ] },
+        '.warnclear', '.warnlimit <2-10>', '.warnkick on/off', '.warnstatus',
+        '.autowarn image on/off', '.autowarn video on/off', '.autowarn audio on/off', '.autowarn sticker on/off',
+        '.autowarn document on/off', '.autowarn link on/off', '.autowarn word on/off', '.autowarn contact on/off',
+        '.autowarn location on/off', '.autowarn spam on/off', '.autowarn word add/remove <word>', '.autowarn status'
+    ], note: 'Auto-warning controls are group-admin-only. Text matching uses only admin-added words; spam warnings also require .antispam on.' },
     { key: 'spammenu', label: '📨 𝐒𝐏𝐀𝐌', entries: [
         '.antispam on/off', '.antiflood on/off', '.spam status'
-    ], note: 'Anti-spam deletes detected bursts of repeated messages; the bot needs permission to delete messages.' },
+    ], note: 'Anti-spam detects rapid message bursts; the bot needs permission to delete messages. Message-sending spam macros are not included.' },
     { key: 'antimenu', label: '🛡️ 𝐀𝐍𝐓𝐈', entries: [
         '.antilink on/off', '.antistatus on/off', '.anticall on/off', '.antidelete on/off', '.antibug on/off'
     ] },
@@ -54,7 +57,7 @@ const sections = [
     { key: 'gamemenu', label: '🎮 𝐆𝐀𝐌𝐄', entries: [
         '.coinflip', '.roll [sides]', '.riddle', '.trivia', '.wouldyourather'
     ] },
-    { key: 'hackmenu', label: '💻 𝐇𝐀𝐂𝐊 𝐀𝐍𝐈𝐌𝐀𝐓𝐈𝐎𝐍', entries: ['.hack'], note: 'Text-only pretend terminal animation for fun; it does not access or hack any system.' },
+    { key: 'hackmenu', label: '💻 𝐇𝐀𝐂𝐊 𝐀𝐍𝐈𝐌𝐀𝐓𝐈𝐎𝐍', entries: ['.hack [1-20]'], note: 'Text-only pretend terminal animation for fun; it does not access or hack any system.' },
     { key: 'convertmenu', label: '🔄 𝐂𝐎𝐍𝐕𝐄𝐑𝐓', entries: [
         '.base64 <text>', '.binary <text>', '.hex <text>', '.morse <text>', '.toimg', '.tomp3', '.translate <text> <language>', '.tts <text>'
     ] },

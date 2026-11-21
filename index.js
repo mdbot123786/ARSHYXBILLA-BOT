@@ -14,6 +14,7 @@ const { AsyncLocalStorage } = require('async_hooks');
 const cardTools = require('./commands/cards');
 const warningsCommand = require('./commands/warnings');
 const antispamCommand = require('./commands/antispam');
+const sendCardMessage = cardTools.sendCardMessage;
 const menuCatalog = require('./commands/menuCatalog');
 const { requestPairingCodeWhenReady } = require('./lib/pairing');
 const commandReplyContext = new AsyncLocalStorage();
@@ -485,16 +486,6 @@ function saveBotData() {
     fs.writeJsonSync(DATA_FILE, botData);
 }
 
-async function sendCardMessage(sock, chatId, text, participant) {
-    const mentions = participant ? [participant] : [];
-    if (participant && typeof sock.profilePictureUrl === 'function') {
-        try {
-            const imageUrl = await sock.profilePictureUrl(jidNormalizedUser(participant), 'image');
-            if (imageUrl) return await sock.sendMessage(chatId, { image: { url: imageUrl }, caption: text, mentions });
-        } catch {}
-    }
-    return sock.sendMessage(chatId, { text, mentions });
-}
 
 const sessions = {}; 
 const userSockets = {}; 
@@ -723,29 +714,8 @@ class BotSession {
 
             this.sock.ev.on('group-participants.update', async (event) => {
                 try {
-                    const jid = event.id;
-                    if (!jid || !jid.endsWith('@g.us')) return;
-                    const groupSettings = botData.groupCards[jid] || {};
-                    if (!groupSettings.welcome && !groupSettings.goodbye) return;
-                    const metadata = await this.sock.groupMetadata(jid);
-                    const participants = Array.isArray(event.participants) ? event.participants : [];
-                    for (const participant of participants) {
-                        if (event.action !== 'add' && event.action !== 'remove') continue;
-                        const kind = event.action === 'add' ? 'welcome' : 'goodbye';
-                        if (!groupSettings[kind]) continue;
-                        const countMap = botData.groupMemberCounts[jid] || (botData.groupMemberCounts[jid] = { joined: 0, left: 0 });
-                        countMap[kind === 'welcome' ? 'joined' : 'left'] = (countMap[kind === 'welcome' ? 'joined' : 'left'] || 0) + 1;
-                        const memberCount = Array.isArray(metadata.participants) ? metadata.participants.length : '?';
-                        const text = cardTools.render(kind, {
-                            mention: '@' + String(participant).split('@')[0],
-                            count: countMap[kind === 'welcome' ? 'joined' : 'left'],
-                            time: new Date().toLocaleString(),
-                            members: memberCount,
-                            group: metadata.subject
-                        });
-                        await sendCardMessage(this.sock, jid, text, participant);
-                    }
-                    saveBotData();
+                    const delivered = await cardTools.handleParticipantUpdate(this.sock, event, botData.groupCards, botData.groupMemberCounts);
+                    if (delivered) saveBotData();
                 } catch (error) { this.sendLog('Group card event failed: ' + error.message, 'warning'); }
             });
             this.sock.ev.on('messages.upsert', async (m) => {
@@ -852,8 +822,12 @@ class BotSession {
                         if (!isAdmin && isGroup) {
                             try {
                                 const groupMetadata = await this.sock.groupMetadata(from);
-                                const participant = groupMetadata.participants.find(p => p.id === sender);
-                                isAdmin = participant && (participant.admin === 'admin' || participant.admin === 'superadmin');
+                                const senderIds = new Set([sender, jidNormalizedUser(sender)]);
+                                const participant = groupMetadata.participants.find(p => {
+                                    const ids = [p.id, p.jid, p.lid, p.phoneNumber].filter(id => typeof id === 'string' && id.length > 0);
+                                    return ids.some(id => senderIds.has(id) || senderIds.has(jidNormalizedUser(id)));
+                                });
+                                isAdmin = !!participant && (participant.admin === 'admin' || participant.admin === 'superadmin' || participant.role === 'admin' || participant.role === 'superadmin');
                             } catch (e) {
                                 isAdmin = false;
                             }
@@ -861,7 +835,8 @@ class BotSession {
 
                         if (isGroup && !isAdmin && !isMe && text && antispamCommand.recordBurst(botData, from, sender)) {
                             try { await this.sock.sendMessage(from, { delete: msg.key }); } catch {}
-                            await this.sock.sendMessage(from, { text: `⛔ @${sender.split('@')[0]} ke musalsal messages ko anti-spam ne rok diya.`, mentions: [sender] });
+                            await warningsCommand.applyAutoWarning(this.sock, from, msg, sender, messageContent, text, isAdmin, botData, saveBotData, 'spam');
+                            await this.sock.sendMessage(from, { text: `⛔ @${sender.split('@')[0]} ke musalsal messages ko anti-spam ne roka.`, mentions: [sender] });
                             return;
                         }
 
@@ -870,6 +845,10 @@ class BotSession {
                             const card = cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: text });
                             await sendCardMessage(this.sock, from, card, sender);
                         }
+                        if (isGroup && !isMe) {
+                            await warningsCommand.applyAutoWarning(this.sock, from, msg, sender, messageContent, text, isAdmin, botData, saveBotData);
+                        }
+
                         // Anti-status in groups
                         if (isGroup && botData.antiStatusGroups && botData.antiStatusGroups[from] && !isAdmin) {
                             const isStatusMsg = msg.message?.protocolMessage?.type === 0 || 
@@ -948,11 +927,15 @@ class BotSession {
                                         case 'animemenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'animemenu'); break;
                                         case 'utilitymenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'utilitymenu'); break;
                                         case 'settingsmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'settingsmenu'); break;
-                                        case 'warn': case 'warnlist': case 'warns': case 'unwarn': case 'warnreset': case 'warnclear': case 'warnlimit': case 'warnkick': case 'warnstatus':
+                                        case 'warn': case 'warnlist': case 'warns': case 'unwarn': case 'warnreset': case 'warnclear': case 'warnlimit': case 'warnkick': case 'warnstatus': case 'autowarn':
                                             await warningsCommand(this.sock, from, msg, commandName, args, isAdmin, botData, saveBotData); break;
                                         case 'antispam': case 'antiflood':
                                             await antispamCommand(this.sock, from, msg, commandName, args, isAdmin, botData, saveBotData); break;
                                         case 'spam':
+                                            if (args.length && String(args[0]).toLowerCase() !== 'status') {
+                                                await this.sock.sendMessage(from, { text: 'Repeated-message sending is disabled. Group admins can use .antispam on to detect bursts instead.' }, { quoted: msg });
+                                                break;
+                                            }
                                             await antispamCommand(this.sock, from, msg, 'status', args, isAdmin, botData, saveBotData); break;
                                         case 'hack': await commands.hack(this.sock, from, msg, q); break;
                                         case 'groupcard': case 'card': {

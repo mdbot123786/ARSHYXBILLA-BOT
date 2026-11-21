@@ -61,6 +61,8 @@ MIT
 - Each of the six card types has 30 randomized phrase variations. Welcome/goodbye use WhatsApp group participant events.
 - Pairing requests wait for Baileys' readiness event before asking WhatsApp for a code. On the phone, open **WhatsApp → Settings → Linked Devices → Link a Device → Link with phone number instead** and enter the code displayed by the dashboard. WhatsApp issues the code; the app cannot force a WhatsApp push notification.
 - The admin-card feature echoes admin text in a card; WhatsApp has already delivered the original admin message, so the bot cannot replace it retroactively.
+- Group admins can configure `.autowarn image|video|audio|sticker|document|link|word|contact|location|spam on/off`; `.autowarn word add <word>` adds a custom text trigger. Spam auto-warnings also require `.antispam on`. These warn only on selected events, not on every message.
+- `.hack 1` through `.hack 20` select a specific harmless text animation; `.hack` picks one at random. `.spam <text> <count>` mass-send macros are intentionally not provided.
 - The web pairing page is `index.html`; the three muted H.264 Baseline background videos and their poster fallbacks are served from `public/assets/`.
 
 ## Railway deployment

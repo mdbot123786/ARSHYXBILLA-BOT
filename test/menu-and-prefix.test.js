@@ -15,7 +15,7 @@ test('main menu contains requested useful sections and configured links', () => 
 });
 test('command menus show commands without prose appended to command names', () => {
   const all = menu.renderAllMenu();
-  for (const c of ['.groupcard welcome on/off','.warn @user [reason]','.antispam on/off','.antilink on/off','.hack','.joke','.meme','.poetry','.vv']) assert.doesNotMatch(all, new RegExp(`\\| ◈ \\${c.replace('.', '\\.')}\\b`));
+  for (const c of ['.groupcard welcome on/off','.warn @user [reason]','.autowarn image on/off','.autowarn video on/off','.autowarn word on/off','.antispam on/off','.antilink on/off','.hack [1-20]','.joke','.meme','.poetry','.vv']) assert.doesNotMatch(all, new RegExp(`\\| ◈ \\${c.replace('.', '\\.')}\\b`));
   for (const line of all.split('\n').filter(l => l.includes('│ ◈ .'))) assert.equal(line.trim().split(/\s+—\s+/).length, 1, line);
   assert.doesNotMatch(all, /\.news\b|\.song\b|\.movie\b|\.apk\b|\.emojimix\b|\.vv\b/);
 });
@@ -26,6 +26,7 @@ test('automation/card menus contain expected toggles and honest limits', () => {
   const cards = menu.renderSectionMenu('cardmenu');
   for (const c of ['.groupcard welcome on/off','.groupcard goodbye on/off','.groupcard admin on/off','.adminmsg <text>']) assert.ok(cards.includes(c));
   assert.match(cards, /Channel subscriber join\/leave events are not exposed/i);
+  const warnings=menu.renderSectionMenu('warningsmenu'); for(const t of ['image','video','audio','sticker','document','link','word','contact','location','spam']) assert.ok(warnings.includes(`.autowarn ${t} on/off`));
 });
 test('main menu sends local start image', async () => {
   const sock=fakeSocket(), imagePath=path.join(__dirname,'..','public','assets','start-image.jpg');
