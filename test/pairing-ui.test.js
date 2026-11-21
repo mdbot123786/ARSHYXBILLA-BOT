@@ -7,11 +7,13 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const server = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] || '';
 const functionLines = script.split('\n');
 const formatFunction = functionLines.find(line => line.startsWith('function formatPairingCode('));
 const setFunction = functionLines.find(line => line.startsWith('function setPairCode('));
 const copyFunction = functionLines.find(line => line.startsWith('async function copyPairingCode('));
+const generateFunction = functionLines.find(line => line.startsWith('function generateCode('));
 
 test('pairing copy button begins disabled and is enabled only for an eight-character code', () => {
     assert.match(html, /id="copyPairCode"[^>]*disabled/);
@@ -52,4 +54,15 @@ test('copy action uses the clipboard API and reports success', async () => {
 test('web instructions explain Linked Devices and do not promise WhatsApp notifications', () => {
     assert.match(html, /Settings → Linked Devices → Link a Device → Link with phone number instead/);
     assert.match(html, /cannot force a WhatsApp push notification/);
+});
+
+test('pairing code generation is independent of Admin Access', () => {
+    assert.ok(generateFunction);
+    assert.doesNotMatch(generateFunction, /isAdminAuthenticated|openAdminAccess|admin-auth/);
+    assert.match(html, /Pairing is available independently of Admin Access/);
+    const setUserHandler = server.match(/socket\.on\('set-user',[\s\S]*?\n    \}\);/)?.[0];
+    const pairRequestHandler = server.match(/socket\.on\('pair-request',[\s\S]*?\n    \}\);/)?.[0];
+    assert.ok(setUserHandler && pairRequestHandler);
+    assert.doesNotMatch(setUserHandler, /socket\.authenticated/);
+    assert.doesNotMatch(pairRequestHandler, /socket\.authenticated/);
 });

@@ -1383,8 +1383,12 @@ const adminAuthFailures = new Map();
 io.on('connection', (socket) => {
     socket.on('admin-auth', (password) => {
         const adminPass = String(process.env.ADMIN_PASSWORD || '');
-        if (adminPass.length < 12) {
+        if (!adminPass) {
             socket.emit('admin-auth-fail', { code: 'not_configured', message: 'Admin access is not configured. Set a strong ADMIN_PASSWORD on the server.' });
+            return;
+        }
+        if (adminPass.length < 12) {
+            socket.emit('admin-auth-fail', { code: 'weak_configuration', message: 'ADMIN_PASSWORD must be at least 12 characters; update the server-side setting.' });
             return;
         }
         const address = socket.handshake.address || 'unknown';
@@ -1414,7 +1418,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('set-user', (userId) => {
-        if (!socket.authenticated) return socket.emit('pair-error', 'Unlock ADMIN ACCESS before requesting a pairing code.');
         if (typeof userId !== 'string' || !/^user_[a-z0-9]{9}$/.test(userId)) return socket.emit('pair-error', 'Invalid pairing session. Refresh and try again.');
         userSockets[userId] = socket.id;
         if (!sessions[userId]) sessions[userId] = new BotSession(userId);
@@ -1422,7 +1425,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('pair-request', async ({ userId, number } = {}) => {
-        if (!socket.authenticated) return socket.emit('pair-error', 'Unlock ADMIN ACCESS before requesting a pairing code.');
         if (typeof userId !== 'string' || !/^user_[a-z0-9]{9}$/.test(userId) || userSockets[userId] !== socket.id) return socket.emit('pair-error', 'Pairing session is invalid. Refresh and try again.');
         number = String(number || '').replace(/\D/g, '');
         if (number.length < 10 || number.length > 15) return socket.emit('pair-error', 'Enter a valid phone number with country code.');
