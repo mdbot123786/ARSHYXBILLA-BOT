@@ -1,13 +1,13 @@
-module.exports = async function(sock, chatId, msg, q) {
-    if (!q) return await sock.sendMessage(chatId, { text: '\u26A0\uFE0F .join <whatsapp group link>' }, { quoted: msg });
-    
+'use strict';
+
+module.exports = async function joinCommand(sock, chatId, msg, query, isOwner) {
+    if (!isOwner) return sock.sendMessage(chatId, { text: 'Only the bot owner/session owner can add this bot to another group.' }, { quoted: msg });
+    const match = String(query || '').trim().match(/^https:\/\/chat\.whatsapp\.com\/([A-Za-z0-9_-]{8,})(?:[/?#].*)?$/i);
+    if (!match) return sock.sendMessage(chatId, { text: 'Usage: .join <valid https://chat.whatsapp.com invite link>' }, { quoted: msg });
     try {
-        const inviteCode = q.split('chat.whatsapp.com/')[1]?.split('?')[0];
-        if (!inviteCode) return await sock.sendMessage(chatId, { text: '\u274C Invalid link!' }, { quoted: msg });
-        
-        const response = await sock.groupAcceptInvite(inviteCode);
-        await sock.sendMessage(chatId, { text: `\u2705 Joined group!\nGID: ${response}` }, { quoted: msg });
-    } catch (e) {
-        await sock.sendMessage(chatId, { text: '\u274C Failed: ' + e.message }, { quoted: msg });
+        const response = await sock.groupAcceptInvite(match[1]);
+        return sock.sendMessage(chatId, { text: `Joined group successfully. Group ID: ${response}` }, { quoted: msg });
+    } catch (error) {
+        return sock.sendMessage(chatId, { text: `Could not join the group: ${error.message}` }, { quoted: msg });
     }
 };

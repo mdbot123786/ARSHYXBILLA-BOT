@@ -112,11 +112,12 @@ async function videoCommand(sock, chatId, message) {
         
         if (!downloadSuccess) throw new Error('All download sources failed.');
 
+        const safeTitle = String(videoData.title || videoTitle || 'video').replace(/[^\w\s-]/g, '').trim() || 'video';
         await sock.sendMessage(chatId, {
             video: { url: videoData.download },
             mimetype: 'video/mp4',
-            fileName: `${videoData.title.replace(/[^\w\s-]/g, '')}.mp4`,
-            caption: `*${videoData.title}*\n\n> *Downloaded by OLD-STUDIO*`
+            fileName: `${safeTitle}.mp4`,
+            caption: `*${videoData.title || videoTitle || 'Video'}*\n\n> Downloaded by ARSHY BOT`
         }, { quoted: message });
 
     } catch (error) {

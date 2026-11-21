@@ -1,4 +1,5 @@
-module.exports = async function(sock, chatId, msg, session, args) {
+module.exports = async function(sock, chatId, msg, session, args, isOwner) {
+    if (!isOwner) return sock.sendMessage(chatId, { text: 'Only the bot owner/session owner can toggle AI auto-replies.' }, { quoted: msg });
     const action = args[0]?.toLowerCase();
     
     if (action === 'on') {

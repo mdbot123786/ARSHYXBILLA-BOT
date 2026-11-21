@@ -1,9 +1,7 @@
+'use strict';
+
 module.exports = async function(sock, chatId, msg) {
-    const text = `*\u1F4DC Your Command Stats*\n\n` +
-        `Total commands used: Tracking...\n` +
-        `Favorite command: .menu\n` +
-        `Session active: Yes\n\n` +
-        `_Keep using ARSHYXBILLA BOT!_`;
-    
-    await sock.sendMessage(chatId, { text }, { quoted: msg });
+    return sock.sendMessage(chatId, {
+        text: 'Per-command usage statistics are not stored by this bot. No personal command totals or favourites are available.'
+    }, { quoted: msg });
 };

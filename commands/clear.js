@@ -1,3 +1,5 @@
-module.exports = async function(sock, chatId, msg) {
-    await sock.sendMessage(chatId, { text: '\u1F5D1\uFE0F Clearing chat...\n\nThis will delete bot messages.' }, { quoted: msg });
+'use strict';
+
+module.exports = async function clearCommand(sock, chatId, msg) {
+    return sock.sendMessage(chatId, { text: 'Chat clearing is not implemented. No messages were deleted.' }, { quoted: msg });
 };

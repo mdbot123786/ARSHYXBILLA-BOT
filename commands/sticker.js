@@ -1,39 +1,27 @@
+'use strict';
+
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const sharp = require('sharp');
-const fs = require('fs-extra');
-const path = require('path');
 
-module.exports = async function(sock, chatId, msg) {
+async function collect(stream) {
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+}
+
+module.exports = async function stickerCommand(sock, chatId, msg) {
     try {
-        const quoted = msg.message?.imageMessage || msg.message?.videoMessage ||
-            msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage ||
-            msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.videoMessage;
-        
-        if (!quoted) return await sock.sendMessage(chatId, { text: '\u26A0\uFE0F Reply to an image/video!' }, { quoted: msg });
-        
-        await sock.sendMessage(chatId, { text: '\u2728 Converting to sticker...' }, { quoted: msg });
-        
-        const type = quoted.imageMessage ? 'image' : 'video';
-        const stream = await downloadContentFromMessage(quoted[type + 'Message'] || quoted, type);
-        let buffer = Buffer.from([]);
-        for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-        
-        const tmpFile = path.join(__dirname, '..', 'data', `sticker_${Date.now()}.webp`);
-        
-        if (type === 'image') {
-            await sharp(buffer)
-                .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-                .webp({ quality: 80 })
-                .toFile(tmpFile);
-        }
-        
-        const stickerBuffer = await fs.readFile(tmpFile);
-        await sock.sendMessage(chatId, { 
-            sticker: stickerBuffer 
-        }, { quoted: msg });
-        
-        await fs.remove(tmpFile);
-    } catch (e) {
-        await sock.sendMessage(chatId, { text: '\u274C Error: ' + e.message }, { quoted: msg });
+        const current = msg.message?.ephemeralMessage?.message || msg.message?.viewOnceMessage?.message || msg.message?.viewOnceMessageV2?.message || msg.message || {};
+        const context = current.extendedTextMessage?.contextInfo || msg.message?.extendedTextMessage?.contextInfo;
+        const quoted = context?.quotedMessage?.ephemeralMessage?.message || context?.quotedMessage?.viewOnceMessage?.message || context?.quotedMessage?.viewOnceMessageV2?.message || context?.quotedMessage || {};
+        const image = current.imageMessage || quoted.imageMessage;
+        if (!image) return sock.sendMessage(chatId, { text: 'Reply to a still image with .sticker. Video-to-sticker conversion is not supported by this command.' }, { quoted: msg });
+        const input = await collect(await downloadContentFromMessage(image, 'image'));
+        if (!input.length) throw new Error('The image download was empty.');
+        const sticker = await sharp(input).rotate().resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).webp({ quality: 80 }).toBuffer();
+        return sock.sendMessage(chatId, { sticker }, { quoted: msg });
+    } catch (error) {
+        console.error('Sticker error:', error);
+        return sock.sendMessage(chatId, { text: `Could not create a sticker: ${error.message}` }, { quoted: msg });
     }
 };

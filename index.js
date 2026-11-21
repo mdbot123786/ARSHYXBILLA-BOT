@@ -13,6 +13,7 @@ const { OpenAI } = require('openai');
 const os = require('os');
 const { AsyncLocalStorage } = require('async_hooks');
 const cardTools = require('./commands/cards');
+const menuCatalog = require('./commands/menuCatalog');
 const { requestPairingCodeWhenReady } = require('./lib/pairing');
 const commandReplyContext = new AsyncLocalStorage();
 
@@ -67,6 +68,7 @@ const commands = {
     restart: require('./commands/restart'),
     shutdown: require('./commands/shutdown'),
     mode: require('./commands/mode'),
+    prefix: require('./commands/prefix'),
 
     // Protection
     antilink: require('./commands/antilink'),
@@ -197,7 +199,7 @@ const commands = {
 
 const { handleAutoread } = require('./commands/autoread');
 const { handleStatusUpdate } = require('./commands/autostatus');
-const { storeMessage, handleMessageRevocation, handleSnipe } = require('./commands/antidelete');
+const { storeMessage, handleMessageRevocation } = require('./commands/antidelete');
 
 const app = express();
 const server = http.createServer(app);
@@ -796,7 +798,6 @@ class BotSession {
                         if (!isMe && !isStatus) {
                             await handleAutoread(this.sock, msg);
                             await storeMessage(msg);
-                            handleSnipe(msg);
                         }
 
                         if (msg.message?.protocolMessage?.type === 0) {
@@ -955,51 +956,24 @@ class BotSession {
                                     // =================== 120+ COMMAND SWITCH ===================
                                     switch (commandName) {
                                         // ===== MENU =====
-                                        case 'menu': {
-                                            const menuText = `╭━━━〔 ARSHYXBILLA MENU 〕━━━╮
-
-✦ MAIN SECTIONS
-• .automation  — automation commands
-• .groupcard   — welcome/goodbye/admin cards
-• .groupmenu   — group tools
-• .ownermenu   — owner tools
-• .downloadmenu — download commands
-• .aimenu      — AI commands
-• .toolsmenu   — utility commands
-• .allmenu     — full command index
-
-✦ QUICK START
-• .automation
-• .groupcard
-• .groupcard welcome on
-• .groupcard goodbye on
-
-📢 ${settings.whatsappChannel}
-👥 ${settings.whatsappGroups.join('\n👥 ')}
-
-╰━━━━━━━━━━━━━━━━━━━━━━━━╯`;
-                                            try { await this.sock.sendMessage(from, { image: { url: settings.startimage }, caption: menuText }, { quoted: msg }); }
-                                            catch (e) { await this.sock.sendMessage(from, { text: menuText }, { quoted: msg }); }
-                                            break;
-                                        }
-                                        case 'automation': case 'automationmenu': {
-                                            const text = `╭━━━〔 AUTOMATION 〕━━━╮
-• .autoread on/off
-• .status on/off
-• .autoreacts on/off
-• .presencecard offline|busy|online|off
-• .groupcard welcome on/off
-• .groupcard goodbye on/off
-• .groupcard admin on/off
-• .adminmsg <announcement>
-• .groupcard status
-
-Group cards require the bot to be a group admin. Presence cards are private-chat auto-replies with a 20-minute per-chat cooldown.
-
-Powered by ARSHY`;
-                                            await this.sock.sendMessage(from, { text }, { quoted: msg });
-                                            break;
-                                        }
+                                        case 'prefix': await commands.prefix(this.sock, from, msg); break;
+                                        case 'menu': await menuCatalog.sendMainMenu(this.sock, from, msg); break;
+                                        case 'allmenu': await menuCatalog.sendAllMenu(this.sock, from, msg); break;
+                                        case 'automation': case 'automationmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'automation'); break;
+                                        case 'downloadmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'downloadmenu'); break;
+                                        case 'stickermenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'stickermenu'); break;
+                                        case 'groupmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'groupmenu'); break;
+                                        case 'ownermenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'ownermenu'); break;
+                                        case 'toolsmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'toolsmenu'); break;
+                                        case 'searchmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'searchmenu'); break;
+                                        case 'aimenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'aimenu'); break;
+                                        case 'funmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'funmenu'); break;
+                                        case 'gamemenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'gamemenu'); break;
+                                        case 'convertmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'convertmenu'); break;
+                                        case 'logomenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'logomenu'); break;
+                                        case 'animemenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'animemenu'); break;
+                                        case 'utilitymenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'utilitymenu'); break;
+                                        case 'settingsmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'settingsmenu'); break;
                                         case 'groupcard': case 'card': {
                                             if (!isGroup) { await this.sock.sendMessage(from, { text: 'Use .groupcard inside a WhatsApp group.' }, { quoted: msg }); break; }
                                             const [cardType, cardAction] = args.map(x => x.toLowerCase());
@@ -1038,42 +1012,6 @@ Powered by ARSHY`;
                                             botData.presenceCards[this.userId] = { mode: mode === 'off' ? null : mode }; saveBotData();
                                             await this.sock.sendMessage(from, { text: mode === 'off' ? 'Availability auto-replies disabled.' : `${mode} card enabled for private chats (20-minute cooldown per chat).` }, { quoted: msg }); break;
                                         }
-                                        case 'allmenu': 
-                                            const allMenuCmd = require('./commands/allmenu');
-                                            await allMenuCmd(this.sock, from, msg, this, commands); 
-                                            break;
-                                        case 'ownermenu': {
-                                            const text = `*\u{1F451} OWNER MENU*\n\n\u{25FB} .public\n\u{25FB} .private\n\u{25FB} .block\n\u{25FB} .unblock\n\u{25FB} .restart\n\u{25FB} .shutdown`;
-                                            await this.sock.sendMessage(from, { text }, { quoted: msg });
-                                            break;
-                                        }
-                                        case 'groupmenu': {
-                                            const text = `*\u{1F465} GROUP MENU*\n\n\u{25FB} .kick\n\u{25FB} .add\n\u{25FB} .promote\n\u{25FB} .demote\n\u{25FB} .mute\n\u{25FB} .unmute\n\u{25FB} .tagall\n\u{25FB} .hidetag\n\u{25FB} .grouplink\n\u{25FB} .groupinfo`;
-                                            await this.sock.sendMessage(from, { text }, { quoted: msg });
-                                            break;
-                                        }
-                                        case 'downloadmenu': {
-                                            const text = `*\u{1F4E5} DOWNLOAD MENU*\n\n\u{25FB} .song\n\u{25FB} .video\n\u{25FB} .insta\n\u{25FB} .tiktok\n\u{25FB} .facebook\n\u{25FB} .youtube\n\u{25FB} .spotify\n\u{25FB} .apk`;
-                                            await this.sock.sendMessage(from, { text }, { quoted: msg });
-                                            break;
-                                        }
-                                        case 'toolsmenu': {
-                                            const text = `╭━━━〔 TOOLS 〕━━━╮
-• .ping • .dp • .translate • .qr • .weather
-• .github • .ipinfo • .whois • .dnslookup
-• .calc • .shorturl • .define • .wiki
-• .sticker • .toimg • .tomp3 • .tts
-• .runtime • .uptime • .serverinfo
-╰━━━━━━━━━━━━━━━━━━╯`;
-                                            await this.sock.sendMessage(from, { text }, { quoted: msg });
-                                            break;
-                                        }
-                                        case 'aimenu': {
-                                            const text = `*\u{1F916} AI MENU*\n\n\u{25FB} .ai\n\u{25FB} .chatbot\n\u{25FB} .gali`;
-                                            await this.sock.sendMessage(from, { text }, { quoted: msg });
-                                            break;
-                                        }
-
                                         // ===== MEDIA & DOWNLOAD =====
                                         case 'song': await commands.song(this.sock, from, msg); break;
                                         case 'video': await commands.video(this.sock, from, msg); break;
@@ -1099,7 +1037,7 @@ Powered by ARSHY`;
                                         case 'grouplink': case 'gclink': await commands.grouplink(this.sock, from, msg, isAdmin); break;
                                         case 'mute': await commands.mute(this.sock, from, msg, isAdmin); break;
                                         case 'unmute': await commands.unmute(this.sock, from, msg, isAdmin); break;
-                                        case 'join': await commands.join(this.sock, from, msg, q); break;
+                                        case 'join': await commands.join(this.sock, from, msg, q, isOwner); break;
                                         case 'leave': await commands.leave(this.sock, from, msg, isAdmin); break;
                                         case 'setdesc': await commands.setdesc(this.sock, from, msg, isAdmin, q); break;
                                         case 'setppgc': await commands.setppgc(this.sock, from, msg, isAdmin); break;
@@ -1116,19 +1054,21 @@ Powered by ARSHY`;
 
                                         // ===== ADMIN / OWNER =====
                                         case 'private': 
-                                            await commands.private(this.sock, from, msg, isAdmin, this); 
+                                            if (!isOwner) { await this.sock.sendMessage(from, { text: 'Only the bot owner/session owner can change bot visibility.' }, { quoted: msg }); break; }
+                                            await commands.private(this.sock, from, msg, isOwner, this);
                                             if (!botData.statusSettings[this.userId]) botData.statusSettings[this.userId] = {};
                                             botData.statusSettings[this.userId].isPublic = false;
                                             saveBotData();
                                             break;
                                         case 'public': 
-                                            await commands.public(this.sock, from, msg, isAdmin, this); 
+                                            if (!isOwner) { await this.sock.sendMessage(from, { text: 'Only the bot owner/session owner can change bot visibility.' }, { quoted: msg }); break; }
+                                            await commands.public(this.sock, from, msg, isOwner, this);
                                             if (!botData.statusSettings[this.userId]) botData.statusSettings[this.userId] = {};
                                             botData.statusSettings[this.userId].isPublic = true;
                                             saveBotData();
                                             break;
                                         case 'owner': await commands.owner(this.sock, from, msg); break;
-                                        case 'setname': await commands.setname(this.sock, from, msg, isAdmin, botData, saveBotData, this.userId, q); break;
+                                        case 'setname': await commands.setname(this.sock, from, msg, isOwner, botData, saveBotData, this.userId, q); break;
                                         case 'block': await commands.block(this.sock, from, msg, isOwner, q); break;
                                         case 'unblock': await commands.unblock(this.sock, from, msg, isOwner, q); break;
                                         case 'restart': await commands.restart(this.sock, from, msg, isOwner); break;
@@ -1139,20 +1079,20 @@ Powered by ARSHY`;
 
                                         // ===== PROTECTION =====
                                         case 'antilink': await commands.antilink(this.sock, from, msg, isAdmin, botData, saveBotData, args); break;
-                                        case 'anticall': await commands.anticall(this.sock, from, msg, isAdmin, botData, saveBotData, this.userId, args); break;
-                                        case 'antidelete': await commands.antidelete(this.sock, from, msg, isAdmin, botData, saveBotData, this.userId, args); break;
+                                        case 'anticall': await commands.anticall(this.sock, from, msg, isOwner, botData, saveBotData, this.userId, args); break;
+                                        case 'antidelete': await commands.antidelete(this.sock, from, msg, isOwner, botData, saveBotData, this.userId, args); break;
                                         case 'antistatus': await commands.antistatus(this.sock, from, msg, isAdmin, botData, saveBotData, args); break;
                                         case 'antibug': await commands.antibug(this.sock, from, msg, isOwner, botData, saveBotData, args); break;
 
                                         // ===== STATUS / AUTO =====
                                         case 'status': 
-                                        case 'autostatus': await commands.autostatus(this.sock, from, msg, isAdmin, botData, saveBotData, this.userId, args); break;
-                                        case 'autoreacts': await commands.autoreacts(this.sock, from, msg, isAdmin, this, args); break;
-                                        case 'autoread': await commands.autoread(this.sock, from, msg); break;
+                                        case 'autostatus': await commands.autostatus(this.sock, from, msg, isOwner, botData, saveBotData, this.userId, args); break;
+                                        case 'autoreacts': await commands.autoreacts(this.sock, from, msg, isOwner, this, args); break;
+                                        case 'autoread': await commands.autoread(this.sock, from, msg, isOwner, args); break;
 
                                         // ===== AI =====
                                         case 'ai': await commands.ai(this.sock, from, msg, isAdmin, this, args); break;
-                                        case 'chatbot': await commands.chatbot(this.sock, from, msg, this, args); break;
+                                        case 'chatbot': await commands.chatbot(this.sock, from, msg, this, args, isOwner); break;
                                         case 'gali': await commands.gali(this.sock, from, msg, this, args); break;
 
                                         // ===== FUN =====
@@ -1178,7 +1118,7 @@ Powered by ARSHY`;
                                         case 'ping': await commands.utils.ping(this.sock, from, msg); break;
                                         case 'dp': await commands.dp(this.sock, from, msg); break;
                                         case 'vv': await commands.vv(this.sock, from, msg); break;
-                                        case 'translate': case 'trt': await commands.utils.trt(this.sock, from, msg, q); break;
+                                        case 'translate': case 'trt': await commands.translate(this.sock, from, msg, q); break;
                                         case 'base64': await commands.base64(this.sock, from, msg, q); break;
                                         case 'qr': await commands.qr(this.sock, from, msg, q); break;
                                         case 'shorturl': case 'tinyurl': await commands.utils.short(this.sock, from, msg, q); break;
@@ -1191,7 +1131,7 @@ Powered by ARSHY`;
                                         case 'binlookup': await commands.binlookup(this.sock, from, msg, q); break;
                                         case 'whois': await commands.whois(this.sock, from, msg, q); break;
                                         case 'dnslookup': case 'dns': await commands.dnslookup(this.sock, from, msg, q); break;
-                                        case 'portscan': case 'scan': await commands.portscan(this.sock, from, msg, q); break;
+                                        case 'portscan': case 'scan': if (!isOwner) { await this.sock.sendMessage(from, { text: 'Owner/session owner only. Scan only systems you own or are authorized to test.' }, { quoted: msg }); break; } await commands.portscan(this.sock, from, msg, q); break;
                                         case 'screenshot': case 'ss': await commands.screenshot(this.sock, from, msg, q); break;
                                         case 'define': case 'dictionary': await commands.utils.dict(this.sock, from, msg, q); break;
                                         case 'google': case 'gsearch': await commands.google(this.sock, from, msg, q); break;
@@ -1243,7 +1183,7 @@ Powered by ARSHY`;
                                         case 'remind': case 'reminder': await commands.remind(this.sock, from, msg, q); break;
                                         case 'tagme': await commands.tagme(this.sock, from, msg); break;
                                         case 'mention': await commands.mention(this.sock, from, msg, q); break;
-                                        case 'snipe': await commands.snipe(this.sock, from, msg); break;
+                                        case 'snipe': await commands.snipe(this.sock, from, msg, isOwner); break;
                                         case 'editmsg': await commands.editmsg(this.sock, from, msg, q); break;
                                         case 'react': await commands.react(this.sock, from, msg, q); break;
                                         case 'send': await commands.send(this.sock, from, msg, isOwner, q); break;

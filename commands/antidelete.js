@@ -4,8 +4,15 @@ const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const { writeFile } = require('fs/promises');
 
 const messageStore = new Map();
+const snipedMessages = new Map();
 const CONFIG_PATH = path.join(__dirname, '../data/antidelete.json');
 const TEMP_MEDIA_DIR = path.join(__dirname, '../tmp');
+
+async function streamToBuffer(stream) {
+    const chunks = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks);
+}
 
 const toBold = (text) => {
     const boldChars = {
@@ -50,7 +57,8 @@ const cleanTempFolderIfLarge = () => {
     } catch (err) {}
 };
 
-setInterval(cleanTempFolderIfLarge, 60 * 1000);
+const cleanupTimer = setInterval(cleanTempFolderIfLarge, 60 * 1000);
+cleanupTimer.unref?.();
 
 function loadAntideleteConfig() {
     try {
@@ -67,7 +75,8 @@ function saveAntideleteConfig(config) {
     } catch (err) {}
 }
 
-async function handleAntideleteCommand(sock, chatId, message, isAdmin, botData, saveBotData, userId, args) {
+async function handleAntideleteCommand(sock, chatId, message, isOwner, botData, saveBotData, userId, args) {
+    if (!isOwner) return sock.sendMessage(chatId, { text: 'Only the bot owner can change anti-delete settings.' }, { quoted: message });
     const config = loadAntideleteConfig();
     const match = args[0]?.toLowerCase();
 
@@ -119,23 +128,23 @@ async function storeMessage(message) {
         } else if (msg.imageMessage) {
             mediaType = 'image';
             content = msg.imageMessage.caption || '';
-            const buffer = await downloadContentFromMessage(msg.imageMessage, 'image');
+            const buffer = await streamToBuffer(await downloadContentFromMessage(msg.imageMessage, 'image'));
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.jpg`);
             await writeFile(mediaPath, buffer);
         } else if (msg.stickerMessage) {
             mediaType = 'sticker';
-            const buffer = await downloadContentFromMessage(msg.stickerMessage, 'sticker');
+            const buffer = await streamToBuffer(await downloadContentFromMessage(msg.stickerMessage, 'sticker'));
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.webp`);
             await writeFile(mediaPath, buffer);
         } else if (msg.videoMessage) {
             mediaType = 'video';
             content = msg.videoMessage.caption || '';
-            const buffer = await downloadContentFromMessage(msg.videoMessage, 'video');
+            const buffer = await streamToBuffer(await downloadContentFromMessage(msg.videoMessage, 'video'));
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.mp4`);
             await writeFile(mediaPath, buffer);
         } else if (msg.audioMessage) {
             mediaType = 'audio';
-            const buffer = await downloadContentFromMessage(msg.audioMessage, 'audio');
+            const buffer = await streamToBuffer(await downloadContentFromMessage(msg.audioMessage, 'audio'));
             mediaPath = path.join(TEMP_MEDIA_DIR, `${messageId}.mp3`);
             await writeFile(mediaPath, buffer);
         }
@@ -148,6 +157,7 @@ async function storeMessage(message) {
             group: message.key.remoteJid.endsWith('@g.us') ? message.key.remoteJid : null,
             timestamp: new Date().toISOString()
         });
+        if (messageStore.size > 3000) messageStore.delete(messageStore.keys().next().value);
     } catch (err) {}
 }
 
@@ -160,10 +170,11 @@ async function handleMessageRevocation(sock, revocationMessage) {
         const deletedBy = revocationMessage.participant || revocationMessage.key.participant || revocationMessage.key.remoteJid;
         const ownerNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
-        if (deletedBy.includes(sock.user.id) || deletedBy === ownerNumber) return;
-
         const original = messageStore.get(messageId);
         if (!original) return;
+        const sourceChat = revocationMessage.key.remoteJid;
+        handleSnipe({ key: { remoteJid: sourceChat, participant: original.sender }, message: { conversation: original.content || `[Deleted ${original.mediaType || 'message'}]` } });
+        if (deletedBy.includes(sock.user.id) || deletedBy === ownerNumber) return;
 
         const sender = original.sender;
         const senderName = sender.split('@')[0];
@@ -197,9 +208,6 @@ async function handleMessageRevocation(sock, revocationMessage) {
     } catch (err) {}
 }
 
-// Store for snipe functionality
-const snipedMessages = new Map();
-
 function handleSnipe(message) {
     try {
         const from = message.key.remoteJid;
@@ -216,3 +224,4 @@ module.exports = handleAntideleteCommand;
 module.exports.storeMessage = storeMessage;
 module.exports.handleMessageRevocation = handleMessageRevocation;
 module.exports.handleSnipe = handleSnipe;
+module.exports.getSnipedMessages = chatId => snipedMessages.get(chatId) || [];

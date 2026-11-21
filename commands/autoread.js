@@ -11,6 +11,7 @@ const configPath = path.join(__dirname, '..', 'data', 'autoread.json');
 
 // Initialize configuration file if it doesn't exist
 function initConfig() {
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
     if (!fs.existsSync(configPath)) {
         fs.writeFileSync(configPath, JSON.stringify({ enabled: false }, null, 2));
     }
@@ -18,103 +19,28 @@ function initConfig() {
 }
 
 // Toggle autoread feature
-async function autoreadCommand(sock, chatId, message) {
+async function autoreadCommand(sock, chatId, message, isOwner, providedArgs) {
     try {
-        // Check if sender is the owner (bot itself)
-        if (!message.key.fromMe) {
-            await sock.sendMessage(chatId, {
-                text: '❌ This command is only available for the owner!',
-                contextInfo: {
-                    forwardingScore: 1,
-                    isForwarded: true,
-                    forwardedNewsletterMessageInfo: {
-                        newsletterJid: '120363408426516135@newsletter',
-                        newsletterName: '𝗧𝗘𝗔𝗠-𝗕𝗟𝗔𝗖𝗞-𝗛𝗔T',
-                        serverMessageId: -1
-                    }
-                }
-            });
-            return;
-        }
-
-        // Get command arguments
-        const args = message.message?.conversation?.trim().split(' ').slice(1) || 
-                    message.message?.extendedTextMessage?.text?.trim().split(' ').slice(1) || 
-                    [];
-        
-        // Initialize or read config
+        if (!isOwner) return sock.sendMessage(chatId, { text: 'Only the bot owner/session owner can change auto-read.' }, { quoted: message });
+        const rawText = message.message?.ephemeralMessage?.message || message.message?.viewOnceMessage?.message || message.message?.viewOnceMessageV2?.message || message.message || {};
+        const parsedArgs = rawText.conversation?.trim().split(/\s+/).slice(1) || rawText.extendedTextMessage?.text?.trim().split(/\s+/).slice(1) || [];
+        const args = Array.isArray(providedArgs) ? providedArgs : parsedArgs;
         const config = initConfig();
-        
-        // Toggle based on argument or toggle current state if no argument
-        if (args.length > 0) {
-            const action = args[0].toLowerCase();
-            if (action === 'on' || action === 'enable') {
-                config.enabled = true;
-            } else if (action === 'off' || action === 'disable') {
-                config.enabled = false;
-            } else {
-                await sock.sendMessage(chatId, {
-                    text: '❌ Invalid option! Use: .autoread on/off',
-                    contextInfo: {
-                        forwardingScore: 1,
-                        isForwarded: true,
-                        forwardedNewsletterMessageInfo: {
-                            newsletterJid: '120363408426516135@newsletter',
-                            newsletterName: '𝗧𝗘𝗔𝗠-𝗕𝗟𝗔𝗖𝗞-𝗛𝗔T',
-                            serverMessageId: -1
-                        }
-                    }
-                });
-                return;
-            }
-        } else {
-            // Toggle current state
-            config.enabled = !config.enabled;
-        }
-        
-        // Save updated configuration
+        const action = String(args[0] || '').toLowerCase();
+        if (action === 'on' || action === 'enable') config.enabled = true;
+        else if (action === 'off' || action === 'disable') config.enabled = false;
+        else return sock.sendMessage(chatId, { text: 'Usage: .autoread on/off' }, { quoted: message });
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-        
-        // Send confirmation message
-        await sock.sendMessage(chatId, {
-            text: `✅ Auto-read has been ${config.enabled ? 'enabled' : 'disabled'}!`,
-            contextInfo: {
-                forwardingScore: 1,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: '120363408426516135@newsletter',
-                    newsletterName: '𝗧𝗘𝗔𝗠-𝗕𝗟𝗔𝗖𝗞-𝗛𝗔T',
-                    serverMessageId: -1
-                }
-            }
-        });
-        
+        return sock.sendMessage(chatId, { text: `Auto-read ${config.enabled ? 'enabled' : 'disabled'}.` }, { quoted: message });
     } catch (error) {
         console.error('Error in autoread command:', error);
-        await sock.sendMessage(chatId, {
-            text: '❌ Error processing command!',
-            contextInfo: {
-                forwardingScore: 1,
-                isForwarded: true,
-                forwardedNewsletterMessageInfo: {
-                    newsletterJid: '120363408426516135@newsletter',
-                    newsletterName: '𝗧𝗘𝗔𝗠-𝗕𝗟𝗔𝗖𝗞-𝗛𝗔T',
-                    serverMessageId: -1
-                }
-            }
-        });
+        return sock.sendMessage(chatId, { text: 'Could not update auto-read settings.' }, { quoted: message });
     }
 }
 
-// Function to check if autoread is enabled
 function isAutoreadEnabled() {
-    try {
-        const config = initConfig();
-        return config.enabled;
-    } catch (error) {
-        console.error('Error checking autoread status:', error);
-        return false;
-    }
+    try { return Boolean(initConfig().enabled); }
+    catch (error) { console.error('Error checking autoread status:', error); return false; }
 }
 
 // Function to check if bot is mentioned in a message

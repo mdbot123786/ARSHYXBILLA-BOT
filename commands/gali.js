@@ -2,7 +2,8 @@ module.exports = async function(sock, from, msg, session, args) {
     const text = args.join(' ');
     
     // Extract target from mention or quoted message
-    let target = msg.mentionedJid?.[0] || msg.quoted?.sender || null;
+    const context = msg.message?.extendedTextMessage?.contextInfo;
+    let target = context?.mentionedJid?.[0] || context?.participant || msg.mentionedJid?.[0] || msg.quoted?.sender || null;
     let name = text ? text.trim().toLowerCase() : '';
     
     // If no target and no name, show usage

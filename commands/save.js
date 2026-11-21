@@ -1,3 +1,5 @@
-module.exports = async function(sock, chatId, msg) {
-    await sock.sendMessage(chatId, { text: '\u1F4BE Saved message bookmark!' }, { quoted: msg });
+'use strict';
+
+module.exports = async function saveCommand(sock, chatId, msg) {
+    return sock.sendMessage(chatId, { text: 'Message bookmarks are not implemented, so this message was not saved.' }, { quoted: msg });
 };

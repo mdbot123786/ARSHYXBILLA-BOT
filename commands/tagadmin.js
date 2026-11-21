@@ -1,19 +1,16 @@
-module.exports = async function(sock, chatId, msg, isAdmin) {
+'use strict';
+
+module.exports = async function(sock, chatId, msg) {
+    if (!chatId.endsWith('@g.us')) {
+        return sock.sendMessage(chatId, { text: 'Use .tagadmin inside a WhatsApp group.' }, { quoted: msg });
+    }
     try {
-        const groupMetadata = await sock.groupMetadata(chatId);
-        const admins = groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin');
-        
-        if (admins.length === 0) return await sock.sendMessage(chatId, { text: '\u26A0\uFE0F No admins found!' }, { quoted: msg });
-        
-        let text = '*\u1F4EF Tagging all admins:*\n\n';
-        const mentions = [];
-        for (const admin of admins) {
-            text += `@${admin.id.split('@')[0]}\n`;
-            mentions.push(admin.id);
-        }
-        
-        await sock.sendMessage(chatId, { text, mentions }, { quoted: msg });
-    } catch (e) {
-        await sock.sendMessage(chatId, { text: '\u274C Error: ' + e.message }, { quoted: msg });
+        const group = await sock.groupMetadata(chatId);
+        const admins = (group.participants || []).filter(p => p.admin === 'admin' || p.admin === 'superadmin');
+        if (!admins.length) return sock.sendMessage(chatId, { text: 'No group admins found.' }, { quoted: msg });
+        const text = `*Group admins:*\n${admins.map(p => `@${p.id.split('@')[0]}`).join('\n')}`;
+        return sock.sendMessage(chatId, { text, mentions: admins.map(p => p.id) }, { quoted: msg });
+    } catch (error) {
+        return sock.sendMessage(chatId, { text: `Could not read group admins: ${error.message}` }, { quoted: msg });
     }
 };

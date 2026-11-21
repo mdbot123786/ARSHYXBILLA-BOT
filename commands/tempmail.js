@@ -65,6 +65,9 @@ async function getMessage(token, messageId) {
 
 module.exports = async function(sock, chatId, msg) {
     try {
+        if (chatId.endsWith('@g.us')) {
+            return await sock.sendMessage(chatId, { text: 'For privacy, use .tempmail in a private chat. Email previews and OTPs are never sent to groups.' }, { quoted: msg });
+        }
         const userId = chatId;
 
         // If user already has an active tempmail, show it

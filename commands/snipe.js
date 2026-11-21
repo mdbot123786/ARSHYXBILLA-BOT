@@ -1,29 +1,12 @@
-const deletedMessages = new Map();
+'use strict';
 
-function handleSnipe(msg) {
-    const from = msg.key.remoteJid;
-    const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '[Media/Message]';
-    const sender = msg.key.participant || msg.key.remoteJid;
-    
-    if (!deletedMessages.has(from)) deletedMessages.set(from, []);
-    deletedMessages.get(from).unshift({ text, sender, time: Date.now() });
-    if (deletedMessages.get(from).length > 10) deletedMessages.get(from).pop();
-}
+const { getSnipedMessages } = require('./antidelete');
 
-module.exports = async function(sock, chatId, msg) {
-    const messages = deletedMessages.get(chatId);
-    
-    if (!messages || !messages.length) {
-        return await sock.sendMessage(chatId, { text: '\u26A0\uFE0F No recently deleted messages!' }, { quoted: msg });
-    }
-    
-    const recent = messages[0];
-    const text = `*\u1F50E SNIPE - Last Deleted Message*\n\n` +
-        `From: @${recent.sender.split('@')[0]}\n` +
-        `Time: ${new Date(recent.time).toLocaleTimeString()}\n` +
-        `Content: ${recent.text}`;
-    
-    await sock.sendMessage(chatId, { text, mentions: [recent.sender] }, { quoted: msg });
+module.exports = async function snipeCommand(sock, chatId, msg, isOwner) {
+    if (!isOwner) return sock.sendMessage(chatId, { text: 'Only the bot owner/session owner can retrieve deleted-message history.' }, { quoted: msg });
+    const recent = getSnipedMessages(chatId)[0];
+    if (!recent) return sock.sendMessage(chatId, { text: 'No recently deleted message is available. Enable .antidelete on first.' }, { quoted: msg });
+    const sender = recent.sender || chatId;
+    const text = `🔎 *SNIPE — LAST DELETED MESSAGE*\n\nFrom: @${sender.split('@')[0]}\nTime: ${new Date(recent.time).toLocaleTimeString()}\nContent: ${recent.text}`;
+    return sock.sendMessage(chatId, { text, mentions: [sender] }, { quoted: msg });
 };
-
-module.exports.handleSnipe = handleSnipe;

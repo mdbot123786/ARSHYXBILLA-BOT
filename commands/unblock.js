@@ -1,12 +1,19 @@
+'use strict';
+
 module.exports = async function(sock, chatId, msg, isOwner, q) {
-    if (!isOwner) return await sock.sendMessage(chatId, { text: '\u274C Owner only!' }, { quoted: msg });
-    if (!q) return await sock.sendMessage(chatId, { text: '\u26A0\uFE0F .unblock <number>' }, { quoted: msg });
-    
+    if (!isOwner) return sock.sendMessage(chatId, { text: 'Owner only.' }, { quoted: msg });
+    const raw = String(q || '').trim();
+    if (!raw || !/^\+?[\d\s().-]+$/.test(raw)) {
+        return sock.sendMessage(chatId, { text: 'Usage: .unblock <international phone number, 8–15 digits>' }, { quoted: msg });
+    }
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length < 8 || digits.length > 15) {
+        return sock.sendMessage(chatId, { text: 'Enter a valid international number containing 8–15 digits.' }, { quoted: msg });
+    }
     try {
-        const number = q.replace(/\D/g, '') + '@s.whatsapp.net';
-        await sock.updateBlockStatus(number, 'unblock');
-        await sock.sendMessage(chatId, { text: `\u1F513 Unblocked +${q.replace(/\D/g, '')}` }, { quoted: msg });
-    } catch (e) {
-        await sock.sendMessage(chatId, { text: '\u274C Error: ' + e.message }, { quoted: msg });
+        await sock.updateBlockStatus(`${digits}@s.whatsapp.net`, 'unblock');
+        return sock.sendMessage(chatId, { text: `Unblocked +${digits}.` }, { quoted: msg });
+    } catch (error) {
+        return sock.sendMessage(chatId, { text: `Could not unblock that number: ${error.message}` }, { quoted: msg });
     }
 };

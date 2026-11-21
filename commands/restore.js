@@ -1,5 +1,6 @@
-module.exports = async function(sock, chatId, msg, isOwner) {
-    if (!isOwner) return await sock.sendMessage(chatId, { text: '\u274C Owner only!' }, { quoted: msg });
-    
-    await sock.sendMessage(chatId, { text: '\u1F4C2 Restore functionality - Use .backup to create backups first.' }, { quoted: msg });
+'use strict';
+
+module.exports = async function restoreCommand(sock, chatId, msg, isOwner) {
+    if (!isOwner) return sock.sendMessage(chatId, { text: 'Owner/session owner only.' }, { quoted: msg });
+    return sock.sendMessage(chatId, { text: 'Restore is unavailable: this project has no validated restore workflow. No session or settings were changed.' }, { quoted: msg });
 };

@@ -1,26 +1,28 @@
+'use strict';
+
 module.exports = async function(sock, chatId, msg, isOwner, q) {
-    if (!isOwner) return await sock.sendMessage(chatId, { text: '\u274C Owner only!' }, { quoted: msg });
-    
+    if (!isOwner) return sock.sendMessage(chatId, { text: 'Owner only.' }, { quoted: msg });
+    const raw = String(q || '').trim();
+    if (!/^\d+$/.test(raw)) {
+        return sock.sendMessage(chatId, { text: 'Usage: .deleteall <count 1–50>. Only bot-sent messages in this chat are considered.' }, { quoted: msg });
+    }
+    const count = Number(raw);
+    if (!Number.isSafeInteger(count) || count < 1 || count > 50) {
+        return sock.sendMessage(chatId, { text: 'Choose a whole-number count from 1 to 50.' }, { quoted: msg });
+    }
     try {
-        const count = q && !isNaN(parseInt(q)) ? Math.min(parseInt(q), 100) : 50;
-        
-        await sock.sendMessage(chatId, { text: `\u1F5D1\uFE0F Deleting last ${count} messages...` }, { quoted: msg });
-        
-        // Fetch messages and delete them
         const messages = await sock.loadMessages(chatId, count);
         let deleted = 0;
-        
-        for (const m of messages.messages || []) {
-            if (m.key.fromMe) {
+        for (const item of messages?.messages || []) {
+            if (item?.key?.fromMe) {
                 try {
-                    await sock.sendMessage(chatId, { delete: m.key });
+                    await sock.sendMessage(chatId, { delete: item.key });
                     deleted++;
-                } catch (e) {}
+                } catch (_) {}
             }
         }
-        
-        await sock.sendMessage(chatId, { text: `\u2705 Deleted ${deleted} messages!` });
-    } catch (e) {
-        await sock.sendMessage(chatId, { text: '\u274C Error: ' + e.message }, { quoted: msg });
+        return sock.sendMessage(chatId, { text: `Deleted ${deleted} bot-sent message(s) from the fetched ${count}-message window.` }, { quoted: msg });
+    } catch (error) {
+        return sock.sendMessage(chatId, { text: `Could not load messages for deletion: ${error.message}` }, { quoted: msg });
     }
 };

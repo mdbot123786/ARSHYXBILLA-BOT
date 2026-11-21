@@ -1,44 +1,21 @@
-const fs = require('fs-extra');
-const path = require('path');
+'use strict';
 
-/**
- * Handle status updates (Auto Seen, Auto Like, Auto Download)
- * @param {import('@whiskeysockets/baileys').WASocket} sock 
- * @param {any} m 
- * @param {any} botData 
- * @param {string} userId 
- */
-async function handleStatusUpdate(sock, m, botData, userId) {
+async function handleStatusUpdate(sock, update, botData, userId) {
     try {
-        const settings = botData.statusSettings[userId];
-        if (!settings || !settings.autoStatus) return;
-
-        const msg = m.messages[0];
-        if (!msg.key.remoteJid === 'status@broadcast') return;
-
-        const from = msg.key.participant || msg.key.remoteJid;
-
-        // Auto Seen
-        if (settings.autoSeen) {
-            await sock.readMessages([msg.key]);
+        const settings = botData.statusSettings?.[userId];
+        if (!settings?.autoStatus) return;
+        for (const msg of update?.messages || []) {
+            if (msg?.key?.remoteJid !== 'status@broadcast') continue;
+            const sender = msg.key.participant || msg.key.remoteJid;
+            if (settings.autoSeen) await sock.readMessages([msg.key]);
+            if (settings.autoLike) {
+                const emojis = ['❤️', '👍', '🔥', '👏', '😮', '😂', '🙌', '✨', '⭐', '✅'];
+                const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+                await sock.sendMessage('status@broadcast', { react: { text: emoji, key: msg.key } }, { statusJidList: [sender] });
+            }
         }
-
-        // Auto Like (React)
-        if (settings.autoLike) {
-            const emojis = ['❤️', '👍', '🔥', '👏', '😮', '😂', '🙌', '✨', '⭐', '✅'];
-            const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-            await sock.sendMessage('status@broadcast', {
-                react: { text: randomEmoji, key: msg.key }
-            }, { statusJidList: [from] });
-        }
-
-        // Auto Download
-        if (settings.autoDownload) {
-            // Implementation for auto-downloading status media could go here
-            // For now, we just acknowledge the status was processed
-        }
-    } catch (e) {
-        console.error("Error in handleStatusUpdate:", e);
+    } catch (error) {
+        console.error('Error in handleStatusUpdate:', error);
     }
 }
 
