@@ -22,13 +22,14 @@ test('command menus show commands without prose appended to command names', () =
 test('automation/card menus contain expected toggles and honest limits', () => {
   const automation = menu.renderSectionMenu('automation');
   for (const c of ['.autoread on/off','.status on/off','.autoreacts on/off','.presencecard offline|busy|online|off','.groupcard status']) assert.ok(automation.includes(c));
-  assert.match(automation, /private chats/i);
+  assert.match(automation, /private chats/i); assert.match(automation,/manual away toggle/i); assert.match(automation,/no cooldown/i);
   const cards = menu.renderSectionMenu('cardmenu');
   for (const c of ['.groupcard welcome on/off','.groupcard goodbye on/off','.groupcard admin on/off']) assert.ok(cards.includes(c));
   assert.doesNotMatch(cards,/\.adminmsg\b|\.admin\s*</i);
   assert.doesNotMatch(menu.renderAllMenu(),/api.?key|\.ai\b|openai|gemini/i);
   assert.match(cards, /Channel subscriber join\/leave events are not exposed/i);
-  const warnings=menu.renderSectionMenu('warningsmenu'); for(const t of ['image','video','audio','sticker','document','link','word','contact','location','spam']) assert.ok(warnings.includes(`.autowarn ${t} on/off`));
+  const warnings=menu.renderSectionMenu('warningsmenu'); for(const t of ['image','video','audio','sticker','document','link','word','contact','location','spam','emoji']) assert.ok(warnings.includes(`.autowarn ${t} on/off`));
+  for (const c of ['.warnreset @user','.warnclear','.warnset <2-10>']) assert.ok(warnings.includes(c));
 });
 test('main menu sends local start image', async () => {
   const sock=fakeSocket(), imagePath=path.join(__dirname,'..','public','assets','start-image.jpg');

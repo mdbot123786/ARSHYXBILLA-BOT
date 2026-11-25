@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const statusCommand = require('../commands/status');
 const { autoreadCommand } = require('../commands/autoread');
 const antiDeleteCommand = require('../commands/antidelete');
@@ -17,6 +19,13 @@ function fakeSocket() {
     const sent = [];
     return { sent, sendMessage: async (...args) => { sent.push(args); return {}; } };
 }
+
+test('bot commands are restricted to the linked WhatsApp session user even in public mode', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+    assert.match(source, /const isAuthorized = isSessionUser \|\| isMe;/);
+    assert.match(source, /if \(!isAuthorized\) return;/);
+    assert.doesNotMatch(source, /const isAuthorized = this\.isPublic/);
+});
 
 test('status settings reject non-owners and do not persist changes', async () => {
     const sock = fakeSocket();

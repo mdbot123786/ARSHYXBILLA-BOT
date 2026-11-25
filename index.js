@@ -476,11 +476,11 @@ const DATA_FILE = './data/bot_data.json';
 fs.ensureDirSync(AUTH_DIR);
 fs.ensureDirSync('./data');
 
-let botData = { antilinkGroups: {}, totalBots: 0, registeredBots: [], statusSettings: {}, antiDelete: {}, userNames: {}, antiCall: {}, broadcastHistory: [], groupCards: {}, groupMemberCounts: {}, presenceCards: {}, cardReplyCooldowns: {} };
+let botData = { antilinkGroups: {}, totalBots: 0, registeredBots: [], statusSettings: {}, antiDelete: {}, userNames: {}, antiCall: {}, broadcastHistory: [], groupCards: {}, groupMemberCounts: {}, presenceCards: {} };
 if (fs.existsSync(DATA_FILE)) {
     try { botData = { ...botData, ...fs.readJsonSync(DATA_FILE) }; } catch (e) {}
 }
-for (const key of ['groupCards','groupMemberCounts','presenceCards','cardReplyCooldowns']) if (!botData[key] || typeof botData[key] !== 'object') botData[key] = {};
+for (const key of ['groupCards','groupMemberCounts','presenceCards']) if (!botData[key] || typeof botData[key] !== 'object') botData[key] = {};
 
 function saveBotData() {
     fs.writeJsonSync(DATA_FILE, botData);
@@ -779,19 +779,11 @@ class BotSession {
                             try { await this.sock.sendMessage(from, { react: { text: randomEmoji, key: msg.key } }); } catch (e) {}
                         }
 
-                        // Optional private-chat availability cards; rate-limited per bot session and chat.
+                        // Private-chat availability cards. Offline mode is a manual away toggle.
                         if (!isMe && !isGroup && !isStatus && text && !text.startsWith('.')) {
                             const mode = botData.presenceCards[this.userId]?.mode;
                             if (['offline', 'busy', 'online'].includes(mode)) {
-                                const cooldownKey = `${this.userId}:${from}`;
-                                const lastReply = botData.cardReplyCooldowns[cooldownKey] || 0;
-                                if (Date.now() - lastReply >= 20 * 60 * 1000) {
-                                    await this.sock.sendMessage(from, { text: cardTools.render(mode, { time: new Date().toLocaleString() }) }, { quoted: msg });
-                                    botData.cardReplyCooldowns[cooldownKey] = Date.now();
-                                    const cooldownKeys = Object.keys(botData.cardReplyCooldowns);
-                                    if (cooldownKeys.length > 5000) delete botData.cardReplyCooldowns[cooldownKeys[0]];
-                                    saveBotData();
-                                }
+                                await this.sock.sendMessage(from, { text: cardTools.render(mode, { time: new Date().toLocaleString() }) }, { quoted: msg });
                             }
                         }
                         // Status handling
@@ -816,7 +808,7 @@ class BotSession {
 
                         // PRIORITY FIX: Bot must work in DM/Private Chats
                         // isAuthorized determines if the bot should respond to commands
-                        const isAuthorized = this.isPublic || isOwner || isSessionUser || isMe;
+                        const isAuthorized = isSessionUser || isMe;
 
                         let isAdmin = isOwner;
                         if (!isAdmin && isGroup) {
@@ -894,7 +886,7 @@ class BotSession {
                         // Process commands
                         if (text.toLowerCase().startsWith('.')) {
                             // Re-check authorization for commands
-                            if (!this.isPublic && !isAuthorized) return;
+                            if (!isAuthorized) return;
                             const cmd = text.toLowerCase();
                             const args = text.split(' ').slice(1);
                             const q = args.join(' ');
@@ -928,7 +920,7 @@ class BotSession {
                                         case 'animemenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'animemenu'); break;
                                         case 'utilitymenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'utilitymenu'); break;
                                         case 'settingsmenu': await menuCatalog.sendSectionMenu(this.sock, from, msg, 'settingsmenu'); break;
-                                        case 'warn': case 'warnlist': case 'warns': case 'unwarn': case 'warnreset': case 'warnclear': case 'warnlimit': case 'warnkick': case 'warnstatus': case 'autowarn':
+                                        case 'warn': case 'warnlist': case 'warns': case 'unwarn': case 'warnreset': case 'warnclear': case 'warnlimit': case 'warnset': case 'warnkick': case 'warnstatus': case 'autowarn':
                                             await warningsCommand(this.sock, from, msg, commandName, args, isAdmin, botData, saveBotData); break;
                                         case 'antispam': case 'antiflood':
                                             await antispamCommand(this.sock, from, msg, commandName, args, isAdmin, botData, saveBotData); break;
@@ -969,7 +961,7 @@ class BotSession {
                                             const mode = (args[0] || '').toLowerCase();
                                             if (!['offline','busy','online','off'].includes(mode)) { await this.sock.sendMessage(from, { text: 'Usage: .presencecard <offline|busy|online|off>' }, { quoted: msg }); break; }
                                             botData.presenceCards[this.userId] = { mode: mode === 'off' ? null : mode }; saveBotData();
-                                            await this.sock.sendMessage(from, { text: mode === 'off' ? 'Availability auto-replies disabled.' : `${mode} card enabled for private chats (20-minute cooldown per chat).` }, { quoted: msg }); break;
+                                            await this.sock.sendMessage(from, { text: mode === 'off' ? 'Availability auto-replies disabled.' : `${mode} card enabled for private chats. No cooldown is applied.` }, { quoted: msg }); break;
                                         }
                                         // ===== MEDIA & DOWNLOAD =====
                                         case 'video': await commands.video(this.sock, from, msg); break;

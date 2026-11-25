@@ -38,22 +38,33 @@ test('warning controls require group admin and warning actions persist group cou
   const msg={message:{extendedTextMessage:{contextInfo:{mentionedJid:[target]}}}};
   await warnings(sock,'group@g.us',msg,'warn',[target,'please','follow','rules'],true,data,()=>saves++);
   assert.equal(data.warningCounts['group@g.us'][target],1);
+  assert.ok(warnings.WARNING_LINES.some(line=>sock.sent.at(-1)[1].text.includes(line)));
   assert.ok(saves >= 2);
   await warnings(sock,'group@g.us',msg,'warns',[],true,data,()=>saves++);
   assert.match(sock.sent.at(-1)[1].text,/1\/3/);
+  await warnings(sock,'group@g.us',{},'warnset',['5'],true,data,()=>saves++);
+  assert.equal(warnings.getSettings(data,'group@g.us').config.limit,5);
+  await warnings(sock,'group@g.us',msg,'warnreset',[],true,data,()=>saves++);
+  assert.equal(data.warningCounts['group@g.us'][target],undefined);
 });
 
-test('auto-warning exposes ten admin-controlled triggers and only flags configured content', async () => {
+test('auto-warning exposes eleven admin-controlled triggers and only flags configured content', async () => {
   const data={}; let saves=0; const sock=fakeSocket(); const group='group@g.us'; const jid='111@s.whatsapp.net';
   const {config}=warnings.getSettings(data,group);
-  assert.equal(warnings.AUTO_WARN_TYPES.length,10);
+  assert.equal(warnings.AUTO_WARN_TYPES.length,11);
   await warnings(sock,group,{},'autowarn',['image','on'],true,data,()=>saves++);
   assert.equal(config.autoWarn.image,true);
   config.autoWarn.word=true; config.words.push('badword');
+  await warnings(sock,group,{},'autowarn',['sticker','on'],true,data,()=>saves++);
+  await warnings(sock,group,{},'autowarn',['emoji','on'],true,data,()=>saves++);
   assert.equal(warnings.autoWarningType({imageMessage:{}},'',config),'image');
+  assert.equal(warnings.autoWarningType({},'😀',config),'emoji');
+  assert.equal(warnings.autoWarningType({},'😀 ok',config),null);
+  assert.equal(warnings.autoWarningType({stickerMessage:{}},'',config),'sticker');
   assert.equal(warnings.autoWarningType({conversation:'badword here'},'badword here',config),'word');
   assert.equal(warnings.autoWarningType({conversation:'ordinary hello'},'ordinary hello',config),null);
   assert.equal(await warnings.applyAutoWarning(sock,group,{},jid,{imageMessage:{}},'',false,data,()=>saves++),true);
+  assert.ok(warnings.WARNING_LINES.some(line=>sock.sent.at(-1)[1].text.includes(line)));
   assert.equal(data.warningCounts[group][jid],1);
   const prior=data.warningCounts[group][jid];
   assert.equal(await warnings.applyAutoWarning(sock,group,{},jid,{imageMessage:{}},'',true,data,()=>saves++),false);

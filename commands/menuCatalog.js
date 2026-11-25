@@ -8,7 +8,7 @@ const sections = [
     { key: 'automation', label: '⚙️ 𝐀𝐔𝐓𝐎𝐌𝐀𝐓𝐈𝐎𝐍', entries: [
         '.autoread on/off', '.status on/off', '.status seen on/off', '.status like on/off', '.autoreacts on/off',
         '.presencecard offline|busy|online|off', '.groupcard status'
-    ], note: 'Presence cards work in private chats while the bot session is connected; configured offline/busy modes are manual auto-replies.' },
+    ], note: 'Presence cards work in private chats while the bot session is connected. Offline is a manual away toggle; app activity cannot be detected reliably, and replies have no cooldown.' },
     { key: 'downloadmenu', label: '📥 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃', entries: [
         '.video <name/link>', '.insta <link>', '.tiktok <link>', '.facebook <link>', '.youtube <link>',
         '.spotify <name/link>', '.gdrive <link>', '.mediafire <link>', '.reddit <subreddit/post>'
@@ -28,11 +28,11 @@ const sections = [
     ], note: 'Welcome/goodbye/admin cards work in groups only. WhatsApp Channel subscriber join/leave events are not exposed through this bot interface.' },
     { key: 'warningsmenu', label: '⚠️ 𝐖𝐀𝐑𝐍𝐈𝐍𝐆𝐒', entries: [
         '.warn on/off', '.warn @user [reason]', '.warnlist', '.warns @user', '.unwarn @user', '.warnreset @user',
-        '.warnclear', '.warnlimit <2-10>', '.warnkick on/off', '.warnstatus',
+        '.warnclear', '.warnlimit <2-10>', '.warnset <2-10>', '.warnkick on/off', '.warnstatus',
         '.autowarn image on/off', '.autowarn video on/off', '.autowarn audio on/off', '.autowarn sticker on/off',
         '.autowarn document on/off', '.autowarn link on/off', '.autowarn word on/off', '.autowarn contact on/off',
-        '.autowarn location on/off', '.autowarn spam on/off', '.autowarn word add/remove <word>', '.autowarn status'
-    ], note: 'Auto-warning controls are group-admin-only. Text matching uses only admin-added words; spam warnings also require .antispam on.' },
+        '.autowarn location on/off', '.autowarn spam on/off', '.autowarn emoji on/off', '.autowarn word add/remove <word>', '.autowarn status'
+    ], note: 'Image/sticker/emoji and other auto-warning toggles require an enabled warning type. .warnset sets the warning threshold; .warnreset @user resets one member and .warnclear resets the group. Spam warnings also require .antispam on.' },
     { key: 'spammenu', label: '📨 𝐒𝐏𝐀𝐌', entries: [
         '.antispam on/off', '.antiflood on/off', '.spam status'
     ], note: 'Anti-spam detects rapid message bursts; the bot needs permission to delete messages. Message-sending spam macros are not included.' },
