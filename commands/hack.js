@@ -21,14 +21,35 @@ const animations = [
  ['Launching harmless demo','Checking imaginary permissions','Everything is pretend','Progress: 100%','Demo safely stopped'],
  ['Starting terminal theater','Rendering green characters','No network activity','Progress: 100%','This was only an animation']
 ];
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+function progressBar(percent) {
+    const filled = Math.round(percent / 12.5);
+    return `${'▰'.repeat(filled)}${'▱'.repeat(8 - filled)} ${percent}%`;
+}
 async function hackCommand(sock, chatId, msg, q = '') {
     const raw = String(q || '').trim();
     if (raw && !/^\d+$/.test(raw)) return sock.sendMessage(chatId, { text: 'Istemaal: .hack ya .hack 1-20' }, { quoted: msg });
     const index = raw ? Number(raw) - 1 : Math.floor(Math.random() * animations.length);
     if (index < 0 || index >= animations.length) return sock.sendMessage(chatId, { text: 'Animation number 1 se 20 tak chunein.' }, { quoted: msg });
     const sequence = animations[index];
-    const body = [`╭━━〔 💻 HACK ANIMATION ${index + 1}/20 〕━━╮`, ...sequence.map((line,i) => `▰ ${String(i+1).padStart(2,'0')}/05  ${line}`), '╰━━ Sirf mazaaq — koi system access ya hacking nahi hui ━━╯'].join('\n');
-    return sock.sendMessage(chatId, { text: body }, { quoted: msg });
+    const header = '╔════════════════════════════╗\n║     ⚡ JUTT HACK SYSTEM     ║\n╚════════════════════════════╝';
+    const stages = [
+        `${header}\n\n[+] Initializing visual simulation...\n${progressBar(20)}`,
+        `${header}\n\n${sequence.slice(0, 3).map(line => `[+] ${line}...`).join('\n')}\n${progressBar(55)}`,
+        `${header}\n\n${sequence.slice(0, 4).map(line => `[+] ${line}...`).join('\n')}\n${progressBar(80)}`,
+        `${header}\n\n${sequence.map(line => `[+] ${line}`).join('\n')}\n\n${progressBar(100)}\n\n⚡ ACCESS GRANTED (SIMULATION)\n⚡ GOD MODE: PRETEND ONLY\n\n╔═══ CYBER THEATER ═══╗\n  TARGET: IMAGINARY\n  STATUS: SAFE DEMO\n  FIREWALL: UNTOUCHED\n╚═════════════════════╝\n\n╰━━ Sirf mazaaq — koi system access ya hacking nahi hui ━━╯`
+    ];
+    const sent = await sock.sendMessage(chatId, { text: stages[0] }, { quoted: msg });
+    if (!sent?.key) return sent;
+    for (const stage of stages.slice(1)) {
+        await wait(550);
+        try {
+            await sock.sendMessage(chatId, { text: stage, edit: sent.key });
+        } catch {
+            return sock.sendMessage(chatId, { text: stages[3] }, { quoted: msg });
+        }
+    }
+    return sent;
 }
 hackCommand.animations = animations;
 module.exports = hackCommand;

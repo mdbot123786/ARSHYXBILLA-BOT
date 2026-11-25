@@ -844,6 +844,7 @@ class BotSession {
                             const metadata = await this.sock.groupMetadata(from);
                             const card = cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: text });
                             await sendCardMessage(this.sock, from, card, sender);
+                            return;
                         }
                         if (isGroup && !isMe) {
                             await warningsCommand.applyAutoWarning(this.sock, from, msg, sender, messageContent, text, isAdmin, botData, saveBotData);
@@ -943,7 +944,7 @@ class BotSession {
                                             const [cardType, cardAction] = args.map(x => x.toLowerCase());
                                             const cfg = botData.groupCards[from] || (botData.groupCards[from] = {});
                                             if (!cardType || cardType === 'status') {
-                                                await this.sock.sendMessage(from, { text: `╭━━━〔 GROUP CARD SYSTEM 〕━━━╮\n• .groupcard welcome on/off — join card\n• .groupcard goodbye on/off — leave card\n• .groupcard admin on/off — automatic admin-message cards\n• .adminmsg <text> — send one admin alert card\n\nCurrent: welcome ${cfg.welcome ? 'ON' : 'OFF'} | goodbye ${cfg.goodbye ? 'ON' : 'OFF'} | admin ${cfg.admin ? 'ON' : 'OFF'}\n30 random taglines per card type. Bot must be group admin for join/leave cards.\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯` }, { quoted: msg });
+                                                await this.sock.sendMessage(from, { text: `╭━━━〔 GROUP CARD SYSTEM 〕━━━╮\n• .groupcard welcome on/off — join card\n• .groupcard goodbye on/off — leave card\n• .groupcard admin on/off — automatic cards for admin messages\n\nCurrent: welcome ${cfg.welcome ? 'ON' : 'OFF'} | goodbye ${cfg.goodbye ? 'ON' : 'OFF'} | admin ${cfg.admin ? 'ON' : 'OFF'}\n30 randomized welcome and goodbye lines. Bot must be group admin for join/leave cards.\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯` }, { quoted: msg });
                                                 break;
                                             }
                                             if (!['welcome','goodbye','admin'].includes(cardType) || !['on','off'].includes(cardAction)) {
@@ -962,12 +963,6 @@ class BotSession {
                                             if (!['on','off'].includes(mode)) { await this.sock.sendMessage(from, { text: `Usage: .${commandName} <on|off>` }, { quoted: msg }); break; }
                                             const cfg = botData.groupCards[from] || (botData.groupCards[from] = {}); cfg[type] = mode === 'on'; saveBotData();
                                             await this.sock.sendMessage(from, { text: `${type} card ${mode}.` }, { quoted: msg }); break;
-                                        }
-                                        case 'adminmsg': {
-                                            if (!isGroup || !isAdmin) { await this.sock.sendMessage(from, { text: 'Only a group admin can send an admin card in a group.' }, { quoted: msg }); break; }
-                                            if (!q) { await this.sock.sendMessage(from, { text: 'Usage: .adminmsg <announcement text>' }, { quoted: msg }); break; }
-                                            const metadata = await this.sock.groupMetadata(from);
-                                            await sendCardMessage(this.sock, from, cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: q }), sender); break;
                                         }
                                         case 'presencecard': {
                                             if (!isOwner && !isMe && !isSessionUser) { await this.sock.sendMessage(from, { text: 'Only the bot owner/session owner can change availability cards.' }, { quoted: msg }); break; }

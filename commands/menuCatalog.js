@@ -23,7 +23,7 @@ const sections = [
         '.poll <question>', '.mention @user', '.tagme', '.accept'
     ] },
     { key: 'cardmenu', label: '🖤 𝐂𝐀𝐑𝐃𝐒', entries: [
-        '.groupcard welcome on/off', '.groupcard goodbye on/off', '.groupcard admin on/off', '.groupcard status', '.adminmsg <text>',
+        '.groupcard welcome on/off', '.groupcard goodbye on/off', '.groupcard admin on/off', '.groupcard status',
         '.presencecard offline|busy|online|off'
     ], note: 'Welcome/goodbye/admin cards work in groups only. WhatsApp Channel subscriber join/leave events are not exposed through this bot interface.' },
     { key: 'warningsmenu', label: '⚠️ 𝐖𝐀𝐑𝐍𝐈𝐍𝐆𝐒', entries: [

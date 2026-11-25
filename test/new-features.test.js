@@ -20,8 +20,10 @@ test('hack animation contains exactly twenty harmless local sequences', async ()
   assert.equal(hack.animations.length,20);
   assert.ok(hack.animations.every(seq => seq.length >= 4));
   assert.doesNotMatch(hack.toString(), /axios|fetch\(|exec\(|child_process|request\(/i);
-  const sock=fakeSocket(); await hack(sock,'chat',{}); assert.match(sock.sent[0][1].text,/HACK ANIMATION/); assert.match(sock.sent[0][1].text,/koi system access ya hacking nahi hui/);
-  const indexed=fakeSocket(); await hack(indexed,'chat',{},'5'); assert.match(indexed.sent[0][1].text,/HACK ANIMATION 5\/20/);
+  const animationSocket={sent:[],sendMessage:async(...args)=>{animationSocket.sent.push(args);return {key:{id:'animation-1'}};}};
+  await hack(animationSocket,'chat',{}); assert.match(animationSocket.sent[0][1].text,/JUTT HACK SYSTEM/); assert.equal(animationSocket.sent.filter(x=>x[1].edit).length,3);
+  assert.match(animationSocket.sent.at(-1)[1].text,/ACCESS GRANTED \(SIMULATION\)/); assert.match(animationSocket.sent.at(-1)[1].text,/koi system access ya hacking nahi hui/);
+  const indexed={sent:[],sendMessage:async(...args)=>{indexed.sent.push(args);return {key:{id:'animation-2'}};}}; await hack(indexed,'chat',{},'5'); assert.match(indexed.sent.at(-1)[1].text,/TARGET: IMAGINARY/);
   const invalid=fakeSocket(); await hack(invalid,'chat',{},'21'); assert.match(invalid.sent[0][1].text,/1 se 20/);
 });
 test('view-once command declines bypass and does not attempt media extraction', async () => {
@@ -79,6 +81,9 @@ test('anti-spam only flags repeated bursts after configured threshold', async ()
   assert.equal(antispam.recordBurst(data,'group@g.us','user',10000),false);
 });
 test('cards render join/leave counts and place admin text inside the card', () => {
+  assert.equal(cards.variants.welcome.length,30); assert.equal(cards.variants.goodbye.length,30);
+  assert.equal(cards.variants.welcome[0],'🗿 Khamoshi se aaya hai, lagta hai koi bara khiladi hai.');
+  assert.equal(cards.variants.welcome[13],'⚔️ Mehfil mein aaye ho toh apna rutba bana ke jana.');
   const welcome=cards.render('welcome',{mention:'@Sara',count:7,members:15,time:'12:34'});
   assert.match(welcome,/User: @Sara/); assert.match(welcome,/User No: 7/); assert.match(welcome,/Total Members: 15/);
   const goodbye=cards.render('goodbye',{mention:'@Sara',count:7,members:14,time:'12:35'});
