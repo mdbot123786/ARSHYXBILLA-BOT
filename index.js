@@ -798,7 +798,7 @@ class BotSession {
                         const botNumber = jidNormalizedUser(this.sock.user.id);
                         const botNumberClean = botNumber.split('@')[0];
 
-                        const sender = msg.key.participant || from;
+                        const sender = msg.key.participant || (isMe ? jidNormalizedUser(this.sock.user.id) : from);
                         const senderClean = sender.split('@')[0];
 
                         const ownerNumbers = String(settings.ownerNumber).split(',').map(n => n.replace(/\D/g, ''));
@@ -832,9 +832,17 @@ class BotSession {
                             return;
                         }
 
-                        if (isGroup && isAdmin && !isMe && text && !text.startsWith('.') && botData.groupCards[from]?.admin) {
+                        const isAdminCardEcho = text.includes('✦ 𝐀𝐃𝐌𝐈𝐍 𝐀𝐋𝐄𝐑𝐓 ✦');
+                        if (isGroup && isAdmin && !isAdminCardEcho && !text.startsWith('.') && botData.groupCards[from]?.admin) {
+                            try {
+                                await this.sock.sendMessage(from, { delete: msg.key });
+                            } catch (error) {
+                                this.sendLog(`Admin card could not replace the original message in ${from}: ${error.message}`, 'warning');
+                                return;
+                            }
                             const metadata = await this.sock.groupMetadata(from);
-                            const card = cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: text });
+                            const messageText = text || `[${String(type || 'message').replace(/Message$/, '').toLowerCase()} message]`;
+                            const card = cardTools.render('admin', { mention: '@' + sender.split('@')[0], time: new Date().toLocaleString(), group: metadata.subject, message: messageText });
                             await sendCardMessage(this.sock, from, card, sender);
                             return;
                         }
@@ -936,7 +944,7 @@ class BotSession {
                                             const [cardType, cardAction] = args.map(x => x.toLowerCase());
                                             const cfg = botData.groupCards[from] || (botData.groupCards[from] = {});
                                             if (!cardType || cardType === 'status') {
-                                                await this.sock.sendMessage(from, { text: `╭━━━〔 GROUP CARD SYSTEM 〕━━━╮\n• .groupcard welcome on/off — join card\n• .groupcard goodbye on/off — leave card\n• .groupcard admin on/off — automatic cards for admin messages\n\nCurrent: welcome ${cfg.welcome ? 'ON' : 'OFF'} | goodbye ${cfg.goodbye ? 'ON' : 'OFF'} | admin ${cfg.admin ? 'ON' : 'OFF'}\n30 randomized welcome and goodbye lines. Bot must be group admin for join/leave cards.\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯` }, { quoted: msg });
+                                                await this.sock.sendMessage(from, { text: `╭━━━〔 GROUP CARD SYSTEM 〕━━━╮\n• .groupcard welcome on/off — join card\n• .groupcard goodbye on/off — leave card\n• .groupcard admin on/off — replace admin messages with cards\n\nCurrent: welcome ${cfg.welcome ? 'ON' : 'OFF'} | goodbye ${cfg.goodbye ? 'ON' : 'OFF'} | admin ${cfg.admin ? 'ON' : 'OFF'}\nAdmin-card mode deletes the source message first; the bot must be able to delete it. Channel replacement is unsupported.\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯` }, { quoted: msg });
                                                 break;
                                             }
                                             if (!['welcome','goodbye','admin'].includes(cardType) || !['on','off'].includes(cardAction)) {
@@ -948,13 +956,18 @@ class BotSession {
                                             break;
                                         }
                                         case 'welcomecard': case 'goodbyecard': case 'admincard': {
-                                            if (!isGroup) { await this.sock.sendMessage(from, { text: 'Run this inside a group.' }, { quoted: msg }); break; }
+                                            if (!isGroup) {
+                                                const note = from.endsWith('@newsletter')
+                                                    ? 'WhatsApp Channels do not expose a supported per-post replace/delete operation here, so admin cards can replace messages in groups only.'
+                                                    : 'Run this inside a WhatsApp group.';
+                                                await this.sock.sendMessage(from, { text: note }, { quoted: msg }); break;
+                                            }
                                             if (!isAdmin) { await this.sock.sendMessage(from, { text: 'Only group admins can change card settings.' }, { quoted: msg }); break; }
                                             const type = commandName === 'welcomecard' ? 'welcome' : commandName === 'goodbyecard' ? 'goodbye' : 'admin';
                                             const mode = (args[0] || '').toLowerCase();
                                             if (!['on','off'].includes(mode)) { await this.sock.sendMessage(from, { text: `Usage: .${commandName} <on|off>` }, { quoted: msg }); break; }
                                             const cfg = botData.groupCards[from] || (botData.groupCards[from] = {}); cfg[type] = mode === 'on'; saveBotData();
-                                            await this.sock.sendMessage(from, { text: `${type} card ${mode}.` }, { quoted: msg }); break;
+                                            await this.sock.sendMessage(from, { text: type === 'admin' && mode === 'on' ? 'Admin card on. Eligible admin messages will be deleted and reposted as cards; the bot needs permission to delete them.' : `${type} card ${mode}.` }, { quoted: msg }); break;
                                         }
                                         case 'presencecard': {
                                             if (!isOwner && !isMe && !isSessionUser) { await this.sock.sendMessage(from, { text: 'Only the bot owner/session owner can change availability cards.' }, { quoted: msg }); break; }

@@ -25,7 +25,7 @@ const sections = [
     { key: 'cardmenu', label: '🖤 𝐂𝐀𝐑𝐃𝐒', entries: [
         '.groupcard welcome on/off', '.groupcard goodbye on/off', '.groupcard admin on/off', '.groupcard status',
         '.presencecard offline|busy|online|off'
-    ], note: 'Welcome/goodbye/admin cards work in groups only. WhatsApp Channel subscriber join/leave events are not exposed through this bot interface.' },
+    ], note: 'Welcome/goodbye/admin cards work in groups only. Admin-card mode deletes eligible admin messages before reposting them as cards, so the bot needs permission to delete those messages. WhatsApp Channel posts cannot be replaced through this bot interface, and channel subscriber join/leave events are not exposed.' },
     { key: 'warningsmenu', label: '⚠️ 𝐖𝐀𝐑𝐍𝐈𝐍𝐆𝐒', entries: [
         '.warn on/off', '.warn @user [reason]', '.warnlist', '.warns @user', '.unwarn @user', '.warnreset @user',
         '.warnclear', '.warnlimit <2-10>', '.warnset <2-10>', '.warnkick on/off', '.warnstatus',

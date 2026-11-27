@@ -27,6 +27,14 @@ test('bot commands are restricted to the linked WhatsApp session user even in pu
     assert.doesNotMatch(source, /const isAuthorized = this\.isPublic/);
 });
 
+test('admin-card mode replaces eligible group messages and avoids recarding its own card', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+    assert.match(source, /isGroup && isAdmin && !isAdminCardEcho && !text\.startsWith\('\.'\).*groupCards\[from\]\?\.admin/);
+    assert.match(source, /sendMessage\(from, \{ delete: msg\.key \}\)/);
+    assert.match(source, /await sendCardMessage\(this\.sock, from, card, sender\)/);
+    assert.match(source, /from\.endsWith\('@newsletter'\)/);
+});
+
 test('status settings reject non-owners and do not persist changes', async () => {
     const sock = fakeSocket();
     let saves = 0;
